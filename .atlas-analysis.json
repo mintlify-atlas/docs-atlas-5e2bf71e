@@ -1,0 +1,99 @@
+{
+  "projectType": "api-service",
+  "projectName": "Ash Coffee",
+  "projectDescription": "A Phoenix web application built with the Ash Framework providing user authentication and JSON API services",
+  "theme": "aspen",
+  "primaryColor": "#6F4E37",
+  "lightColor": "#D4A574",
+  "darkColor": "#3E2723",
+  "navigation": {
+    "tabs": [
+      {
+        "tab": "Documentation",
+        "groups": [
+          {
+            "group": "Getting Started",
+            "pages": [
+              "introduction",
+              "quickstart",
+              "installation"
+            ]
+          },
+          {
+            "group": "Core Concepts",
+            "pages": [
+              "concepts/ash-framework",
+              "concepts/domains",
+              "concepts/resources",
+              "concepts/actions"
+            ]
+          },
+          {
+            "group": "Authentication",
+            "pages": [
+              "authentication/overview",
+              "authentication/password-auth",
+              "authentication/magic-links",
+              "authentication/tokens"
+            ]
+          },
+          {
+            "group": "Guides",
+            "pages": [
+              "guides/configuration",
+              "guides/database-setup",
+              "guides/deployment"
+            ]
+          }
+        ]
+      },
+      {
+        "tab": "API Reference",
+        "groups": [
+          {
+            "group": "Overview",
+            "pages": [
+              "api/overview",
+              "api/authentication"
+            ]
+          },
+          {
+            "group": "Endpoints",
+            "pages": [
+              "api/endpoints/users",
+              "api/endpoints/tokens"
+            ]
+          },
+          {
+            "group": "Resources",
+            "pages": [
+              "api/resources/user-resource",
+              "api/resources/token-resource"
+            ]
+          }
+        ]
+      }
+    ]
+  },
+  "keyFeatures": [
+    "Ash Framework-based domain modeling",
+    "Multi-strategy authentication (password, magic link, remember me)",
+    "Email confirmation and password reset",
+    "JSON API with OpenAPI/Swagger documentation",
+    "PostgreSQL database with migrations",
+    "Phoenix LiveView web interface",
+    "Token-based authentication with JWT",
+    "User account management"
+  ],
+  "publicApiSurface": [
+    "POST /api/json/users (register_with_password)",
+    "POST /api/json/auth/sign_in (sign_in_with_password)",
+    "POST /api/json/auth/reset_password (request_password_reset_token)",
+    "PATCH /api/json/users/:id (reset_password_with_token)",
+    "GET /api/json/users/:id (read user)",
+    "GET /api/json/swaggerui (OpenAPI documentation)",
+    "AshCoffee.Accounts domain",
+    "AshCoffee.Accounts.User resource",
+    "AshCoffee.Accounts.Token resource"
+  ]
+}
