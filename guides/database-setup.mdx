@@ -1,0 +1,403 @@
+---
+title: Database Setup
+description: Set up PostgreSQL, run migrations, and seed your Ash Coffee database
+---
+
+This guide walks you through setting up the PostgreSQL database for your Ash Coffee application.
+
+## Prerequisites
+
+<Note>
+Ash Coffee requires PostgreSQL 12 or later with the `citext` extension.
+</Note>
+
+Make sure you have PostgreSQL installed on your system:
+
+<CodeGroup>
+```bash macOS (Homebrew)
+brew install postgresql@16
+brew services start postgresql@16
+```
+
+```bash Ubuntu/Debian
+sudo apt update
+sudo apt install postgresql postgresql-contrib
+sudo systemctl start postgresql
+sudo systemctl enable postgresql
+```
+
+```bash Docker
+docker run -d \
+  --name ash-coffee-db \
+  -e POSTGRES_USER=martha_pop \
+  -e POSTGRES_PASSWORD=postgres_pop \
+  -e POSTGRES_DB=ash_coffee_dev \
+  -p 5432:5432 \
+  postgres:16-alpine
+```
+</CodeGroup>
+
+## Database Configuration
+
+### Development Environment
+
+The default development configuration is located in `config/dev.exs`:
+
+```elixir config/dev.exs
+config :ash_coffee, AshCoffee.Repo,
+  username: "martha_pop",
+  password: "postgres_pop",
+  hostname: "localhost",
+  database: "ash_coffee_dev",
+  stacktrace: true,
+  show_sensitive_data_on_connection_error: true,
+  pool_size: 10
+```
+
+### Production Environment
+
+Production uses a `DATABASE_URL` environment variable:
+
+```bash .env
+DATABASE_URL=ecto://user:password@db.example.com/ash_coffee_prod
+POOL_SIZE=10
+```
+
+## Initial Setup
+
+<Steps>
+  <Step title="Install dependencies">
+    Install all Mix dependencies:
+    
+    ```bash
+    mix deps.get
+    ```
+  </Step>
+  
+  <Step title="Create the database">
+    Create the PostgreSQL database:
+    
+    ```bash
+    mix ash.setup
+    ```
+    
+    Or if you prefer using Ecto directly:
+    
+    ```bash
+    mix ecto.create
+    ```
+  </Step>
+  
+  <Step title="Run migrations">
+    Apply all database migrations:
+    
+    ```bash
+    mix ecto.migrate
+    ```
+    
+    This will create all necessary tables and install required PostgreSQL extensions.
+  </Step>
+  
+  <Step title="Seed the database (optional)">
+    Populate the database with initial data:
+    
+    ```bash
+    mix run priv/repo/seeds.exs
+    ```
+  </Step>
+</Steps>
+
+<Note>
+The `mix setup` alias runs all setup steps automatically:
+
+```bash
+mix setup
+```
+
+This executes: `deps.get`, `ash.setup`, `assets.setup`, `assets.build`, and seeds the database.
+</Note>
+
+## Database Migrations
+
+Ash Coffee uses two migration files to set up the database schema:
+
+### Extension Migration
+
+The first migration installs PostgreSQL extensions and custom functions:
+
+```elixir priv/repo/migrations/..._extensions_1.exs
+defmodule AshCoffee.Repo.Migrations.InitializeExtensions do
+  use Ecto.Migration
+
+  def up do
+    # Install citext extension for case-insensitive text
+    execute("CREATE EXTENSION IF NOT EXISTS \"citext\"")
+    
+    # Custom Ash helper functions
+    execute("""
+    CREATE OR REPLACE FUNCTION uuid_generate_v7()
+    RETURNS UUID AS $$
+      -- UUID v7 implementation
+    $$ LANGUAGE PLPGSQL VOLATILE;
+    """)
+    
+    # Additional Ash utility functions:
+    # - ash_elixir_or/2
+    # - ash_elixir_and/2
+    # - ash_trim_whitespace/1
+    # - ash_raise_error/1
+  end
+
+  def down do
+    execute("DROP FUNCTION IF EXISTS uuid_generate_v7()...")
+  end
+end
+```
+
+<Warning>
+The `citext` extension is required for case-insensitive email storage. Do not remove this extension.
+</Warning>
+
+### Schema Migration
+
+The second migration creates the application tables:
+
+```elixir priv/repo/migrations/..._authentication_resources.exs
+defmodule AshCoffee.Repo.Migrations.CreateAuthenticationResources do
+  use Ecto.Migration
+
+  def up do
+    # Users table
+    create table(:users, primary_key: false) do
+      add :id, :uuid, null: false, default: fragment("gen_random_uuid()"), primary_key: true
+      add :email, :citext, null: false
+      add :hashed_password, :text, null: false
+      add :confirmed_at, :utc_datetime_usec
+    end
+
+    create unique_index(:users, [:email], name: "users_unique_email_index")
+
+    # Authentication tokens table
+    create table(:tokens, primary_key: false) do
+      add :jti, :text, null: false, primary_key: true
+      add :subject, :text, null: false
+      add :expires_at, :utc_datetime, null: false
+      add :purpose, :text, null: false
+      add :extra_data, :map
+
+      add :created_at, :utc_datetime_usec,
+        null: false,
+        default: fragment("(now() AT TIME ZONE 'utc')")
+
+      add :updated_at, :utc_datetime_usec,
+        null: false,
+        default: fragment("(now() AT TIME ZONE 'utc')")
+    end
+  end
+
+  def down do
+    drop table(:tokens)
+    drop_if_exists unique_index(:users, [:email], name: "users_unique_email_index")
+    drop table(:users)
+  end
+end
+```
+
+## Database Schema
+
+### Users Table
+
+| Column | Type | Constraints | Description |
+|--------|------|-------------|-------------|
+| `id` | UUID | PRIMARY KEY, NOT NULL, DEFAULT gen_random_uuid() | User unique identifier |
+| `email` | CITEXT | NOT NULL, UNIQUE | User email (case-insensitive) |
+| `hashed_password` | TEXT | NOT NULL | Bcrypt hashed password |
+| `confirmed_at` | TIMESTAMP | NULL | Email confirmation timestamp |
+
+**Indexes:**
+- `users_unique_email_index` - Unique index on email column
+
+### Tokens Table
+
+| Column | Type | Constraints | Description |
+|--------|------|-------------|-------------|
+| `jti` | TEXT | PRIMARY KEY, NOT NULL | JWT ID (token identifier) |
+| `subject` | TEXT | NOT NULL | Token subject (user ID) |
+| `expires_at` | TIMESTAMP | NOT NULL | Token expiration time |
+| `purpose` | TEXT | NOT NULL | Token purpose (e.g., "refresh") |
+| `extra_data` | JSONB | NULL | Additional token metadata |
+| `created_at` | TIMESTAMP | NOT NULL, DEFAULT now() | Token creation time |
+| `updated_at` | TIMESTAMP | NOT NULL, DEFAULT now() | Token last update time |
+
+## Generating New Migrations
+
+When you modify your Ash resources, generate new migrations:
+
+<Steps>
+  <Step title="Update your Ash resources">
+    Make changes to your Ash resource definitions in `lib/ash_coffee/`.
+  </Step>
+  
+  <Step title="Generate migration">
+    ```bash
+    mix ash_postgres.generate_migrations
+    ```
+    
+    This analyzes your resources and creates migration files in `priv/repo/migrations/`.
+  </Step>
+  
+  <Step title="Review the migration">
+    Open the generated migration file and review the changes.
+  </Step>
+  
+  <Step title="Run the migration">
+    ```bash
+    mix ecto.migrate
+    ```
+  </Step>
+</Steps>
+
+## Common Database Tasks
+
+### Reset the Database
+
+Drop, recreate, and migrate the database:
+
+```bash
+mix ecto.reset
+```
+
+<Warning>
+This will **permanently delete all data** in your database.
+</Warning>
+
+### Rollback Migrations
+
+Rollback the last migration:
+
+```bash
+mix ecto.rollback
+```
+
+Rollback multiple migrations:
+
+```bash
+mix ecto.rollback --step 3
+```
+
+### Check Migration Status
+
+View the status of all migrations:
+
+```bash
+mix ecto.migrations
+```
+
+### Drop the Database
+
+Delete the database:
+
+```bash
+mix ecto.drop
+```
+
+## Seeding Data
+
+The seeds file is located at `priv/repo/seeds.exs`. Add your seed data:
+
+```elixir priv/repo/seeds.exs
+alias AshCoffee.Accounts.User
+
+# Create admin user
+User
+|> Ash.Changeset.for_create(:register_with_password, %{
+  email: "admin@example.com",
+  password: "SecurePassword123!",
+  password_confirmation: "SecurePassword123!"
+})
+|> Ash.create!()
+
+IO.puts("Seeded admin user: admin@example.com")
+```
+
+Run the seeds:
+
+```bash
+mix run priv/repo/seeds.exs
+```
+
+## Database Connection Pool
+
+The default connection pool size is 10. Adjust it based on your needs:
+
+### Development
+
+```elixir config/dev.exs
+config :ash_coffee, AshCoffee.Repo,
+  pool_size: 10
+```
+
+### Production
+
+```bash .env
+POOL_SIZE=20
+```
+
+<Note>
+A good rule of thumb is: `pool_size = (number_of_cores * 2) + effective_spindle_count`
+
+For cloud databases, check your provider's connection limits.
+</Note>
+
+## Troubleshooting
+
+### Connection Refused
+
+If you get "connection refused" errors:
+
+1. Check if PostgreSQL is running:
+   ```bash
+   # macOS
+   brew services list
+   
+   # Linux
+   sudo systemctl status postgresql
+   ```
+
+2. Verify connection settings in `config/dev.exs`
+
+3. Test connection manually:
+   ```bash
+   psql -U martha_pop -d ash_coffee_dev -h localhost
+   ```
+
+### Authentication Failed
+
+If authentication fails:
+
+1. Update `pg_hba.conf` to use `md5` or `password` authentication
+2. Reset the PostgreSQL user password:
+   ```sql
+   ALTER USER martha_pop WITH PASSWORD 'postgres_pop';
+   ```
+
+### Extension Not Found
+
+If the `citext` extension is not available:
+
+```bash
+# Install PostgreSQL contrib package
+sudo apt install postgresql-contrib  # Ubuntu/Debian
+brew install postgresql              # macOS
+```
+
+## Next Steps
+
+<CardGroup cols={2}>
+  <Card title="Configuration" icon="gear" href="/guides/configuration">
+    Configure environment variables and secrets
+  </Card>
+  <Card title="Deployment" icon="rocket" href="/guides/deployment">
+    Deploy your application to production
+  </Card>
+</CardGroup>

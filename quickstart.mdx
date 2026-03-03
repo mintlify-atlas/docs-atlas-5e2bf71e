@@ -1,80 +1,470 @@
 ---
-title: "Quickstart"
-description: "Start building awesome documentation in minutes"
+title: Quick Start
+description: Get up and running with Ash Coffee in minutes with this hands-on guide
 ---
 
-## Get started in three steps
+# Quick Start
 
-Get your documentation site running locally and make your first customization.
+Get Ash Coffee running and create your first authenticated user in under 5 minutes.
 
-### Step 1: Set up your local environment
+## Prerequisites
 
-<AccordionGroup>
-  <Accordion icon="copy" title="Clone your docs locally">
-    During the onboarding process, you created a GitHub repository with your docs content if you didn't already have one. You can find a link to this repository in your [dashboard](https://dashboard.mintlify.com).
-    
-    To clone the repository locally so that you can make and preview changes to your docs, follow the [Cloning a repository](https://docs.github.com/en/repositories/creating-and-managing-repositories/cloning-a-repository) guide in the GitHub docs.
-  </Accordion>
-  <Accordion icon="rectangle-terminal" title="Start the preview server">
-    1. Install the Mintlify CLI: `npm i -g mint`
-    2. Navigate to your docs directory and run: `mint dev`
-    3. Open `http://localhost:3000` to see your docs live!
-    
-    <Tip>Your preview updates automatically as you edit files.</Tip>
-  </Accordion>
-</AccordionGroup>
+Before you begin, ensure you have:
 
-### Step 2: Deploy your changes
-
-<AccordionGroup>
-  <Accordion icon="github" title="Install our GitHub app">
-    Install the Mintlify GitHub app from your [dashboard](https://dashboard.mintlify.com/settings/organization/github-app).
-    
-    Our GitHub app automatically deploys your changes to your docs site, so you don't need to manage deployments yourself.
-</Accordion>
-<Accordion icon="palette" title="Update your site name and colors">
-    For a first change, let's update the name and colors of your docs site.
-
-    1. Open `docs.json` in your editor.
-    2. Change the `"name"` field to your project name.
-    3. Update the `"colors"` to match your brand.
-    4. Save and see your changes instantly at `http://localhost:3000`.
-
-    <Tip>Try changing the primary color to see an immediate difference!</Tip>
-  </Accordion>
-</AccordionGroup>
-
-### Step 3: Go live
-
-<Accordion icon="rocket" title="Publish your docs">
-  1. Commit and push your changes.
-  2. Your docs will update and be live in moments!
-</Accordion>
-
-## Next steps
-
-Now that you have your docs running, explore these key features:
-
-<CardGroup cols={2}>
-
-<Card title="Write Content" icon="pen-to-square" href="/essentials/markdown">
-  Learn MDX syntax and start writing your documentation.
-</Card>
-
-<Card title="Customize style" icon="palette" href="/essentials/settings">
-  Make your docs match your brand perfectly.
-</Card>
-
-<Card title="Add code examples" icon="square-code" href="/essentials/code">
-  Include syntax-highlighted code blocks.
-</Card>
-
-<Card title="API documentation" icon="code" href="/api-reference/introduction">
-  Auto-generate API docs from OpenAPI specs.
-</Card>
-
-</CardGroup>
+- Elixir 1.15+ and Erlang/OTP 25+
+- PostgreSQL 12+ running locally
+- Node.js 16+ for asset compilation
 
 <Note>
-  **Need help?** See our [full documentation](https://mintlify.com/docs) or join our [community](https://mintlify.com/community).
+  If you need to install these dependencies, see the [Installation Guide](/installation) for detailed instructions.
 </Note>
+
+## Setup
+
+<Steps>
+  <Step title="Get the source code and install dependencies">
+    ```bash
+    git clone <repository-url> ash_coffee
+    cd ash_coffee
+    mix setup
+    ```
+    
+    The `mix setup` alias runs:
+    - `mix deps.get` - Install dependencies
+    - `mix ash.setup` - Create and migrate database
+    - `mix assets.setup` - Install Tailwind and esbuild
+    - `mix assets.build` - Compile assets
+    - `mix run priv/repo/seeds.exs` - Seed data
+    
+    <Tip>
+      First-time setup takes 2-3 minutes while dependencies compile.
+    </Tip>
+  </Step>
+  
+  <Step title="Start the Phoenix server">
+    ```bash
+    mix phx.server
+    ```
+    
+    You should see:
+    ```
+    [info] Running AshCoffeeWeb.Endpoint with Bandit 1.5.x at 127.0.0.1:4000 (http)
+    [info] Access AshCoffeeWeb.Endpoint at http://localhost:4000
+    ```
+    
+    Visit [http://localhost:4000](http://localhost:4000) to verify the server is running.
+  </Step>
+  
+  <Step title="Explore the development tools">
+    With the server running, you have access to:
+    
+    <CardGroup cols={2}>
+      <Card title="LiveDashboard" icon="chart-line" href="http://localhost:4000/dev/dashboard">
+        Monitor performance, inspect processes, view Ecto queries
+      </Card>
+      
+      <Card title="Mailbox Preview" icon="envelope" href="http://localhost:4000/dev/mailbox">
+        Preview confirmation and password reset emails
+      </Card>
+      
+      <Card title="Swagger UI" icon="book" href="http://localhost:4000/api/json/swaggerui">
+        Interactive API documentation
+      </Card>
+      
+      <Card title="OpenAPI Spec" icon="file-code" href="http://localhost:4000/api/json/open_api">
+        Download the OpenAPI 3.0 specification
+      </Card>
+    </CardGroup>
+  </Step>
+</Steps>
+
+## Create Your First User
+
+Now let's create a user and authenticate using the Ash Framework API.
+
+### Register a New User
+
+You can register users through multiple interfaces:
+
+<Tabs>
+  <Tab title="Elixir (IEx)">
+    Start an interactive Elixir shell:
+    
+    ```bash
+    iex -S mix phx.server
+    ```
+    
+    Then create a user:
+    
+    ```elixir
+    # Register a new user with email and password
+    AshCoffee.Accounts.User
+    |> Ash.Changeset.for_create(:register_with_password, %{
+      email: "user@example.com",
+      password: "securepassword123",
+      password_confirmation: "securepassword123"
+    })
+    |> Ash.create!()
+    
+    # Response includes the user and a JWT token
+    # %AshCoffee.Accounts.User{
+    #   id: "...",
+    #   email: "user@example.com",
+    #   confirmed_at: nil,
+    #   ...
+    # }
+    ```
+    
+    <Note>
+      The user is created but requires email confirmation. Check the [Mailbox Preview](http://localhost:4000/dev/mailbox) to see the confirmation email.
+    </Note>
+  </Tab>
+  
+  <Tab title="cURL">
+    ```bash
+    curl -X POST http://localhost:4000/api/json/users \
+      -H "Content-Type: application/vnd.api+json" \
+      -H "Accept: application/vnd.api+json" \
+      -d '{
+        "data": {
+          "type": "user",
+          "attributes": {
+            "email": "user@example.com",
+            "password": "securepassword123",
+            "password_confirmation": "securepassword123"
+          }
+        }
+      }'
+    ```
+    
+    Response:
+    ```json
+    {
+      "data": {
+        "id": "...",
+        "type": "user",
+        "attributes": {
+          "email": "user@example.com",
+          "confirmed_at": null
+        }
+      },
+      "meta": {
+        "token": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9..."
+      }
+    }
+    ```
+  </Tab>
+  
+  <Tab title="JavaScript">
+    ```javascript
+    const response = await fetch('http://localhost:4000/api/json/users', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/vnd.api+json',
+        'Accept': 'application/vnd.api+json',
+      },
+      body: JSON.stringify({
+        data: {
+          type: 'user',
+          attributes: {
+            email: 'user@example.com',
+            password: 'securepassword123',
+            password_confirmation: 'securepassword123',
+          },
+        },
+      }),
+    });
+    
+    const result = await response.json();
+    console.log('User created:', result.data);
+    console.log('Auth token:', result.meta.token);
+    ```
+  </Tab>
+</Tabs>
+
+### Sign In
+
+Once registered, sign in to get an authentication token:
+
+<CodeGroup>
+```elixir Elixir
+# Sign in with email and password
+{:ok, user, token} = AshCoffee.Accounts.User
+|> Ash.Query.for_read(:sign_in_with_password, %{
+  email: "user@example.com",
+  password: "securepassword123"
+})
+|> Ash.read_one()
+
+IO.puts("JWT Token: #{token}")
+```
+
+```bash cURL
+curl -X POST http://localhost:4000/api/json/auth/sign_in \
+  -H "Content-Type: application/vnd.api+json" \
+  -d '{
+    "email": "user@example.com",
+    "password": "securepassword123"
+  }'
+```
+
+```javascript JavaScript
+const response = await fetch('http://localhost:4000/api/json/auth/sign_in', {
+  method: 'POST',
+  headers: {
+    'Content-Type': 'application/vnd.api+json',
+  },
+  body: JSON.stringify({
+    email: 'user@example.com',
+    password: 'securepassword123',
+  }),
+});
+
+const { token } = await response.json();
+console.log('Authenticated! Token:', token);
+```
+</CodeGroup>
+
+### Make Authenticated Requests
+
+Use the JWT token in the `Authorization` header:
+
+```bash
+curl http://localhost:4000/api/json/users/USER_ID \
+  -H "Authorization: Bearer YOUR_JWT_TOKEN" \
+  -H "Accept: application/vnd.api+json"
+```
+
+## Understanding the Code
+
+Let's explore the key components that make this work.
+
+### The User Resource
+
+The `User` resource is defined in `lib/ash_coffee/accounts/user.ex`:
+
+```elixir lib/ash_coffee/accounts/user.ex
+defmodule AshCoffee.Accounts.User do
+  use Ash.Resource,
+    domain: AshCoffee.Accounts,
+    data_layer: AshPostgres.DataLayer,
+    extensions: [AshAuthentication]
+
+  authentication do
+    strategies do
+      password :password do
+        identity_field :email
+        hash_provider AshAuthentication.BcryptProvider
+      end
+    end
+    
+    tokens do
+      enabled? true
+      token_resource AshCoffee.Accounts.Token
+      signing_secret AshCoffee.Secrets
+      store_all_tokens? true
+    end
+  end
+  
+  attributes do
+    uuid_primary_key :id
+    attribute :email, :ci_string, allow_nil?: false, public?: true
+    attribute :hashed_password, :string, allow_nil?: false, sensitive?: true
+    attribute :confirmed_at, :utc_datetime_usec
+  end
+  
+  actions do
+    create :register_with_password do
+      # Handles user registration
+    end
+    
+    read :sign_in_with_password do
+      # Handles authentication
+    end
+  end
+end
+```
+
+<AccordionGroup>
+  <Accordion title="Password Authentication Strategy">
+    The `password` strategy:
+    - Uses email as the identity field
+    - Hashes passwords with Bcrypt
+    - Provides password reset functionality
+    - Validates password strength (min 8 characters)
+    
+    See [Password Authentication](/authentication/password-auth) for details.
+  </Accordion>
+  
+  <Accordion title="Token Configuration">
+    JWT tokens are:
+    - Signed with a secret from `AshCoffee.Secrets`
+    - Stored in the `Token` resource for revocation
+    - Required for all authenticated requests
+    - Include the user's subject claim
+    
+    Learn more in [Tokens](/authentication/tokens).
+  </Accordion>
+  
+  <Accordion title="Email Confirmation">
+    New users receive a confirmation email:
+    - Triggered on registration (`confirm_on_create? true`)
+    - Email sent via `SendNewUserConfirmationEmail` sender
+    - Preview emails at [/dev/mailbox](http://localhost:4000/dev/mailbox)
+    - Auto-confirmed for magic link and password reset
+    
+    See [Authentication Overview](/authentication/overview) for the full flow.
+  </Accordion>
+  
+  <Accordion title="Remember Me">
+    The `remember_me` strategy provides:
+    - Extended session tokens
+    - Automatic token refresh
+    - Secure cookie storage
+    
+    Configured in the authentication strategies block.
+  </Accordion>
+</AccordionGroup>
+
+## Next Steps
+
+Now that you have Ash Coffee running, explore these topics:
+
+<CardGroup cols={2}>
+  <Card title="Core Concepts" icon="book" href="/concepts/ash-framework">
+    Understand domains, resources, and actions
+  </Card>
+  
+  <Card title="Authentication Guide" icon="lock" href="/authentication/overview">
+    Explore all authentication strategies
+  </Card>
+  
+  <Card title="API Reference" icon="code" href="/api/overview">
+    Complete API endpoint documentation
+  </Card>
+  
+  <Card title="Configuration" icon="gear" href="/guides/configuration">
+    Configure for production deployment
+  </Card>
+</CardGroup>
+
+## Common Development Tasks
+
+<AccordionGroup>
+  <Accordion title="Running Tests">
+    ```bash
+    # Run all tests
+    mix test
+    
+    # Run a specific test file
+    mix test test/ash_coffee/accounts_test.exs
+    
+    # Run tests matching a pattern
+    mix test --only user_authentication
+    ```
+  </Accordion>
+  
+  <Accordion title="Database Operations">
+    ```bash
+    # Reset database (drop, create, migrate, seed)
+    mix ash.reset
+    
+    # Generate new migrations
+    mix ash_postgres.generate_migrations
+    
+    # Run migrations
+    mix ash_postgres.migrate
+    
+    # Rollback last migration
+    mix ash_postgres.rollback
+    ```
+  </Accordion>
+  
+  <Accordion title="Interactive Console">
+    ```bash
+    # Start IEx with Phoenix server
+    iex -S mix phx.server
+    
+    # Query users
+    AshCoffee.Accounts.User |> Ash.read!()
+    
+    # Get a specific user
+    AshCoffee.Accounts.User
+    |> Ash.Query.filter(email == "user@example.com")
+    |> Ash.read_one!()
+    ```
+  </Accordion>
+  
+  <Accordion title="Code Quality">
+    ```bash
+    # Run the pre-commit alias (format, compile, test)
+    mix precommit
+    
+    # Format code
+    mix format
+    
+    # Check for unused dependencies
+    mix deps.unlock --unused
+    
+    # Compile with warnings as errors
+    mix compile --warnings-as-errors
+    ```
+  </Accordion>
+</AccordionGroup>
+
+## Troubleshooting
+
+<Warning>
+  **Database Connection Issues**: Ensure PostgreSQL is running and the credentials in `config/dev.exs` match your setup.
+  
+  Default credentials:
+  - Username: `martha_pop`
+  - Password: `postgres_pop`
+  - Database: `ash_coffee_dev`
+</Warning>
+
+<Accordion title="Port Already in Use">
+  If port 4000 is already in use:
+  
+  ```bash
+  # Find the process using port 4000
+  lsof -ti:4000
+  
+  # Kill it
+  kill -9 $(lsof -ti:4000)
+  
+  # Or run on a different port
+  PORT=4001 mix phx.server
+  ```
+</Accordion>
+
+<Accordion title="Asset Compilation Errors">
+  If assets fail to compile:
+  
+  ```bash
+  # Clean and reinstall
+  rm -rf assets/node_modules
+  mix assets.setup
+  mix assets.build
+  ```
+</Accordion>
+
+## Resources
+
+<CardGroup cols={2}>
+  <Card title="Ash Framework Docs" icon="book" href="https://hexdocs.pm/ash">
+    Official Ash Framework documentation
+  </Card>
+  
+  <Card title="Phoenix Framework" icon="phoenix-framework" href="https://hexdocs.pm/phoenix">
+    Phoenix web framework guides
+  </Card>
+  
+  <Card title="AshAuthentication" icon="lock" href="https://hexdocs.pm/ash_authentication">
+    Authentication extension documentation
+  </Card>
+  
+  <Card title="AshJsonApi" icon="code" href="https://hexdocs.pm/ash_json_api">
+    JSON:API extension documentation
+  </Card>
+</CardGroup>

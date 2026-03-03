@@ -1,0 +1,462 @@
+---
+title: 'Actions'
+description: 'Understand Ash Actions with real authentication examples from AshCoffee'
+---
+
+## What are Actions?
+
+Actions define **what you can do** with a resource. They're the verbs of your application - create, read, update, delete, and custom operations.
+
+Instead of writing controller methods or context functions, you declare actions on resources. Ash handles validation, authorization, data persistence, and error handling automatically.
+
+## Action Types
+
+Ash supports five action types:
+
+<CardGroup cols={2}>
+  <Card title="Create" icon="plus">
+    Insert new records into the database
+  </Card>
+  <Card title="Read" icon="book">
+    Query and retrieve records
+  </Card>
+  <Card title="Update" icon="pen">
+    Modify existing records
+  </Card>
+  <Card title="Destroy" icon="trash">
+    Delete records from the database
+  </Card>
+  <Card title="Generic" icon="code">
+    Custom actions for business logic that doesn't fit CRUD
+  </Card>
+</CardGroup>
+
+## Default Actions
+
+The User resource starts with default read actions:
+
+```elixir lib/ash_coffee/accounts/user.ex
+actions do
+  defaults [:read]
+end
+```
+
+This single line gives you:
+- `Ash.read/2` - Fetch all users
+- `Ash.get/3` - Fetch one user by ID
+- `Ash.get_by/3` - Fetch one user by field
+- Full query capabilities with filters, sorting, pagination
+
+## Create Actions
+
+Create actions insert new records. Here's the user registration action:
+
+```elixir lib/ash_coffee/accounts/user.ex
+create :register_with_password do
+  description "Register a new user with a email and password."
+
+  argument :email, :ci_string do
+    allow_nil? false
+  end
+
+  argument :password, :string do
+    description "The proposed password for the user, in plain text."
+    allow_nil? false
+    constraints min_length: 8
+    sensitive? true
+  end
+
+  argument :password_confirmation, :string do
+    description "The proposed password for the user (again), in plain text."
+    allow_nil? false
+    sensitive? true
+  end
+
+  # Sets the email from the argument
+  change set_attribute(:email, arg(:email))
+
+  # Hashes the provided password
+  change AshAuthentication.Strategy.Password.HashPasswordChange
+
+  # Generates an authentication token for the user
+  change AshAuthentication.GenerateTokenChange
+
+  # validates that the password matches the confirmation
+  validate AshAuthentication.Strategy.Password.PasswordConfirmationValidation
+
+  metadata :token, :string do
+    description "A JWT that can be used to authenticate the user."
+    allow_nil? false
+  end
+end
+```
+
+<Steps>
+  <Step title="Define Arguments">
+    Actions accept arguments - the input data needed to perform the operation. Here we need email, password, and password confirmation.
+  </Step>
+  
+  <Step title="Add Changes">
+    Changes transform data during the action. The password is hashed and a token is generated automatically.
+  </Step>
+  
+  <Step title="Add Validations">
+    Validations ensure data integrity. The passwords must match before the user is created.
+  </Step>
+  
+  <Step title="Return Metadata">
+    Actions can return extra data beyond the resource. Here we return the JWT token for immediate login.
+  </Step>
+</Steps>
+
+### Using Create Actions
+
+```elixir
+AshCoffee.Accounts.User
+|> Ash.Changeset.for_create(
+  :register_with_password,
+  %{
+    email: "user@example.com",
+    password: "SecurePass123",
+    password_confirmation: "SecurePass123"
+  }
+)
+|> Ash.create()
+```
+
+Returns:
+```elixir
+{:ok, user, %{token: "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9..."}}
+```
+
+## Read Actions
+
+Read actions query data. AshCoffee has several specialized read actions:
+
+<Tabs>
+  <Tab title="Sign In">
+    ```elixir lib/ash_coffee/accounts/user.ex
+    read :sign_in_with_password do
+      description "Attempt to sign in using a email and password."
+      get? true
+
+      argument :email, :ci_string do
+        description "The email to use for retrieving the user."
+        allow_nil? false
+      end
+
+      argument :password, :string do
+        description "The password to check for the matching user."
+        allow_nil? false
+        sensitive? true
+      end
+
+      # validates the provided email and password and generates a token
+      prepare AshAuthentication.Strategy.Password.SignInPreparation
+
+      metadata :token, :string do
+        description "A JWT that can be used to authenticate the user."
+        allow_nil? false
+      end
+    end
+    ```
+    
+    <Info>
+      `get? true` means this action returns a single record, not a list. It will error if multiple users match.
+    </Info>
+  </Tab>
+  
+  <Tab title="Get by Email">
+    ```elixir lib/ash_coffee/accounts/user.ex
+    read :get_by_email do
+      description "Looks up a user by their email"
+      get_by :email
+    end
+    ```
+    
+    A shorthand for creating a read action that queries by a specific field.
+  </Tab>
+  
+  <Tab title="Get by Subject">
+    ```elixir lib/ash_coffee/accounts/user.ex
+    read :get_by_subject do
+      description "Get a user by the subject claim in a JWT"
+      argument :subject, :string, allow_nil?: false
+      get? true
+      prepare AshAuthentication.Preparations.FilterBySubject
+    end
+    ```
+    
+    Used internally by AshAuthentication to load the current user from a JWT token.
+  </Tab>
+</Tabs>
+
+### Using Read Actions
+
+```elixir
+# Sign in and get a token
+AshCoffee.Accounts.User
+|> Ash.Query.for_read(
+  :sign_in_with_password,
+  %{email: "user@example.com", password: "SecurePass123"}
+)
+|> Ash.read_one()
+
+# Get user by email
+AshCoffee.Accounts.User
+|> Ash.get_by(:email, "user@example.com")
+```
+
+## Update Actions
+
+Update actions modify existing records:
+
+```elixir lib/ash_coffee/accounts/user.ex
+update :change_password do
+  require_atomic? false
+  accept []
+  
+  argument :current_password, :string, sensitive?: true, allow_nil?: false
+  
+  argument :password, :string,
+    sensitive?: true,
+    allow_nil?: false,
+    constraints: [min_length: 8]
+  
+  argument :password_confirmation, :string, sensitive?: true, allow_nil?: false
+
+  validate confirm(:password, :password_confirmation)
+
+  validate {AshAuthentication.Strategy.Password.PasswordValidation,
+            strategy_name: :password, password_argument: :current_password}
+
+  change {AshAuthentication.Strategy.Password.HashPasswordChange, 
+          strategy_name: :password}
+end
+```
+
+<Warning>
+  `accept []` means this action doesn't accept direct attribute changes. All updates must go through arguments and changes. This prevents users from setting `hashed_password` directly.
+</Warning>
+
+Another update action for password resets:
+
+```elixir lib/ash_coffee/accounts/user.ex
+update :reset_password_with_token do
+  argument :reset_token, :string do
+    allow_nil? false
+    sensitive? true
+  end
+
+  argument :password, :string do
+    description "The proposed password for the user, in plain text."
+    allow_nil? false
+    constraints min_length: 8
+    sensitive? true
+  end
+
+  argument :password_confirmation, :string do
+    description "The proposed password for the user (again), in plain text."
+    allow_nil? false
+    sensitive? true
+  end
+
+  validate AshAuthentication.Strategy.Password.ResetTokenValidation
+  validate AshAuthentication.Strategy.Password.PasswordConfirmationValidation
+  change AshAuthentication.Strategy.Password.HashPasswordChange
+  change AshAuthentication.GenerateTokenChange
+end
+```
+
+## Generic Actions
+
+Generic actions handle custom business logic that doesn't fit CRUD:
+
+```elixir lib/ash_coffee/accounts/user.ex
+action :request_password_reset_token do
+  description "Send password reset instructions to a user if they exist."
+
+  argument :email, :ci_string do
+    allow_nil? false
+  end
+
+  # creates a reset token and invokes the relevant senders
+  run {AshAuthentication.Strategy.Password.RequestPasswordReset, 
+       action: :get_by_email}
+end
+```
+
+Generic actions use `run` instead of changes and validations. They execute custom code:
+
+```elixir
+AshCoffee.Accounts.User
+|> Ash.ActionInput.for_action(
+  :request_password_reset_token,
+  %{email: "user@example.com"}
+)
+|> Ash.run_action()
+```
+
+## Token Actions
+
+The Token resource has specialized actions:
+
+<Tabs>
+  <Tab title="Store Token">
+    ```elixir lib/ash_coffee/accounts/token.ex
+    create :store_token do
+      description "Stores a token used for the provided purpose."
+      accept [:extra_data, :purpose]
+      argument :token, :string, allow_nil?: false, sensitive?: true
+      change AshAuthentication.TokenResource.StoreTokenChange
+    end
+    ```
+  </Tab>
+  
+  <Tab title="Revoke Token">
+    ```elixir lib/ash_coffee/accounts/token.ex
+    create :revoke_token do
+      description "Revoke a token. Creates a revocation token."
+      accept [:extra_data]
+      argument :token, :string, allow_nil?: false, sensitive?: true
+      change AshAuthentication.TokenResource.RevokeTokenChange
+    end
+    ```
+  </Tab>
+  
+  <Tab title="Check Revoked">
+    ```elixir lib/ash_coffee/accounts/token.ex
+    action :revoked?, :boolean do
+      description "Returns true if a revocation token is found"
+      argument :token, :string, sensitive?: true
+      argument :jti, :string, sensitive?: true
+      run AshAuthentication.TokenResource.IsRevoked
+    end
+    ```
+  </Tab>
+  
+  <Tab title="Query Expired">
+    ```elixir lib/ash_coffee/accounts/token.ex
+    read :expired do
+      description "Look up all expired tokens."
+      filter expr(expires_at < now())
+    end
+    ```
+    
+    <Note>
+      The `filter` adds a built-in WHERE clause. This action always filters to expired tokens only.
+    </Note>
+  </Tab>
+</Tabs>
+
+## Action Anatomy
+
+Every action has these components:
+
+```elixir
+<action_type> :<action_name> do
+  # Optional: Human-readable description
+  description "What this action does"
+  
+  # Arguments: Input required for the action
+  argument :arg_name, :type do
+    allow_nil? false
+    sensitive? true
+    constraints [min_length: 8]
+  end
+  
+  # Accepts: Which attributes can be set directly
+  accept [:attr1, :attr2]
+  
+  # Changes: Transform data during execution
+  change SomeChange
+  change set_attribute(:field, value)
+  
+  # Validations: Ensure data integrity
+  validate SomeValidation
+  validate confirm(:password, :password_confirmation)
+  
+  # Preparations: Set up queries (read actions only)
+  prepare SomePreparation
+  
+  # Metadata: Extra data returned with results
+  metadata :token, :string
+  
+  # Filters: Built-in query filters (read actions only)
+  filter expr(confirmed_at != nil)
+end
+```
+
+## Benefits of Declarative Actions
+
+<CardGroup cols={2}>
+  <Card title="Consistent Validation" icon="check-circle">
+    Validations run automatically. You can't forget to check password confirmation.
+  </Card>
+  <Card title="Reusable Logic" icon="recycle">
+    Changes and validations are composable. Use `HashPasswordChange` across multiple actions.
+  </Card>
+  <Card title="Built-in Authorization" icon="lock">
+    Actions integrate with policies. Authorization is enforced automatically.
+  </Card>
+  <Card title="Testing" icon="flask">
+    Test actions in isolation. No need to mock controllers or HTTP requests.
+  </Card>
+</CardGroup>
+
+## Advanced Features
+
+<AccordionGroup>
+  <Accordion title="Atomic Updates">
+    Actions can be atomic (single database operation) or non-atomic (multiple operations):
+    
+    ```elixir
+    update :increment_login_count do
+      require_atomic? true  # Runs as single UPDATE query
+      change atomic_update(:login_count, expr(login_count + 1))
+    end
+    ```
+  </Accordion>
+  
+  <Accordion title="Conditional Logic">
+    Use `change` with conditions to run logic conditionally:
+    
+    ```elixir
+    create :register do
+      change fn changeset, _context ->
+        if special_promo_active?() do
+          Ash.Changeset.change_attribute(changeset, :discount, 0.20)
+        else
+          changeset
+        end
+      end
+    end
+    ```
+  </Accordion>
+  
+  <Accordion title="Transaction Safety">
+    Actions run in transactions by default. If any validation or change fails, nothing is persisted:
+    
+    ```elixir
+    # Either both succeed or both fail
+    Ash.bulk_create([user_changeset, profile_changeset], transaction?: true)
+    ```
+  </Accordion>
+</AccordionGroup>
+
+## Next Steps
+
+<CardGroup cols={2}>
+  <Card title="Ash Framework" icon="book" href="/concepts/ash-framework">
+    Review the fundamentals of Ash Framework
+  </Card>
+  <Card title="Resources" icon="cube" href="/concepts/resources">
+    Learn more about resource structure
+  </Card>
+  <Card title="Domains" icon="layer-group" href="/concepts/domains">
+    Understand how domains organize actions
+  </Card>
+  <Card title="AshAuthentication" icon="shield-halved" href="https://hexdocs.pm/ash_authentication">
+    Explore AshAuthentication documentation
+  </Card>
+</CardGroup>

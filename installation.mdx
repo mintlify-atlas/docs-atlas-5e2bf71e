@@ -1,0 +1,836 @@
+---
+title: Installation Guide
+description: Complete installation instructions for Ash Coffee including dependencies, database setup, and environment configuration
+---
+
+# Installation
+
+This guide covers everything you need to install and configure Ash Coffee for both development and production environments.
+
+## System Requirements
+
+<CardGroup cols={2}>
+  <Card title="Elixir" icon="code">
+    **Version**: 1.15 or higher
+    
+    Elixir is a functional, concurrent programming language built on the Erlang VM.
+  </Card>
+  
+  <Card title="Erlang/OTP" icon="server">
+    **Version**: 25 or higher
+    
+    Required runtime for Elixir applications.
+  </Card>
+  
+  <Card title="PostgreSQL" icon="database">
+    **Version**: 12 or higher
+    
+    Primary database for storing application data.
+  </Card>
+  
+  <Card title="Node.js" icon="node-js">
+    **Version**: 16 or higher
+    
+    Required for asset compilation (esbuild, Tailwind).
+  </Card>
+</CardGroup>
+
+## Installing Dependencies
+
+### macOS
+
+<Steps>
+  <Step title="Install Homebrew (if not already installed)">
+    ```bash
+    /bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)"
+    ```
+  </Step>
+  
+  <Step title="Install Elixir and Erlang">
+    ```bash
+    brew install elixir
+    ```
+    
+    This automatically installs Erlang as a dependency.
+  </Step>
+  
+  <Step title="Install PostgreSQL">
+    ```bash
+    brew install postgresql@15
+    brew services start postgresql@15
+    ```
+  </Step>
+  
+  <Step title="Install Node.js">
+    ```bash
+    brew install node
+    ```
+  </Step>
+  
+  <Step title="Verify Installations">
+    ```bash
+    elixir --version
+    # Erlang/OTP 26 [erts-14.2] [source] [64-bit] ...
+    # Elixir 1.15.7 (compiled with Erlang/OTP 26)
+    
+    psql --version
+    # psql (PostgreSQL) 15.x
+    
+    node --version
+    # v18.x.x
+    ```
+  </Step>
+</Steps>
+
+### Linux (Ubuntu/Debian)
+
+<Steps>
+  <Step title="Install Elixir and Erlang">
+    ```bash
+    # Add Erlang Solutions repository
+    wget https://packages.erlang-solutions.com/erlang-solutions_2.0_all.deb
+    sudo dpkg -i erlang-solutions_2.0_all.deb
+    sudo apt-get update
+    
+    # Install Elixir and Erlang
+    sudo apt-get install elixir
+    ```
+  </Step>
+  
+  <Step title="Install PostgreSQL">
+    ```bash
+    sudo apt-get install postgresql postgresql-contrib
+    sudo systemctl start postgresql
+    sudo systemctl enable postgresql
+    ```
+  </Step>
+  
+  <Step title="Install Node.js">
+    ```bash
+    # Using NodeSource repository for latest version
+    curl -fsSL https://deb.nodesource.com/setup_18.x | sudo -E bash -
+    sudo apt-get install nodejs
+    ```
+  </Step>
+</Steps>
+
+### Windows
+
+<Steps>
+  <Step title="Install Erlang and Elixir">
+    Download and install from:
+    - [Erlang for Windows](https://www.erlang.org/downloads)
+    - [Elixir for Windows](https://elixir-lang.org/install.html#windows)
+    
+    Or use [Chocolatey](https://chocolatey.org/):
+    ```powershell
+    choco install elixir
+    ```
+  </Step>
+  
+  <Step title="Install PostgreSQL">
+    Download and install from [PostgreSQL Downloads](https://www.postgresql.org/download/windows/)
+  </Step>
+  
+  <Step title="Install Node.js">
+    Download from [nodejs.org](https://nodejs.org/) or use Chocolatey:
+    ```powershell
+    choco install nodejs
+    ```
+  </Step>
+</Steps>
+
+## Project Setup
+
+### Clone and Install
+
+<Steps>
+  <Step title="Get the Source Code">
+    ```bash
+    # Clone the repository (adjust path as needed)
+    git clone <repository-url> ash_coffee
+    cd ash_coffee
+    ```
+  </Step>
+  
+  <Step title="Install Hex and Rebar">
+    ```bash
+    # Hex is the package manager for Elixir
+    mix local.hex --force
+    
+    # Rebar is required for building Erlang dependencies
+    mix local.rebar --force
+    ```
+  </Step>
+  
+  <Step title="Install Project Dependencies">
+    ```bash
+    # Install all Elixir dependencies from mix.exs
+    mix deps.get
+    ```
+    
+    This installs 40+ dependencies including:
+    - `ash` (3.0) - Core framework
+    - `ash_postgres` (2.0) - PostgreSQL integration
+    - `ash_authentication` (4.0) - Authentication system
+    - `phoenix` (1.8.4) - Web framework
+    - `phoenix_live_view` (1.1.0) - Real-time features
+  </Step>
+</Steps>
+
+## Database Configuration
+
+### Development Database
+
+<Steps>
+  <Step title="Create PostgreSQL User (if needed)">
+    ```bash
+    # Connect to PostgreSQL
+    sudo -u postgres psql
+    
+    # Create user and database
+    CREATE USER martha_pop WITH PASSWORD 'postgres_pop';
+    ALTER USER martha_pop CREATEDB;
+    
+    # Exit psql
+    \q
+    ```
+    
+    <Note>
+      The default credentials in `config/dev.exs` are:
+      - Username: `martha_pop`
+      - Password: `postgres_pop`
+      - Database: `ash_coffee_dev`
+      
+      You can customize these in your local configuration.
+    </Note>
+  </Step>
+  
+  <Step title="Configure Database Credentials">
+    Edit `config/dev.exs` if your PostgreSQL setup differs:
+    
+    ```elixir config/dev.exs
+    config :ash_coffee, AshCoffee.Repo,
+      username: "your_username",
+      password: "your_password",
+      hostname: "localhost",
+      database: "ash_coffee_dev",
+      stacktrace: true,
+      show_sensitive_data_on_connection_error: true,
+      pool_size: 10
+    ```
+  </Step>
+  
+  <Step title="Create and Migrate Database">
+    ```bash
+    # Create database, run migrations, and seed data
+    mix ash.setup
+    ```
+    
+    This runs:
+    - Creates the `ash_coffee_dev` database
+    - Runs all migrations in `priv/repo/migrations/`
+    - Executes seed data from `priv/repo/seeds.exs`
+    
+    <Tip>
+      Use `mix ash.reset` to drop and recreate the database from scratch.
+    </Tip>
+  </Step>
+</Steps>
+
+### Test Database
+
+The test database is automatically configured and managed:
+
+```elixir config/test.exs
+config :ash_coffee, AshCoffee.Repo,
+  username: "postgres",
+  password: "postgres",
+  hostname: "localhost",
+  database: "ash_coffee_test#{System.get_env("MIX_TEST_PARTITION")}",
+  pool: Ecto.Adapters.SQL.Sandbox
+```
+
+The test suite automatically sets up the test database before running.
+
+### Production Database
+
+Production uses environment variables for configuration. Set these in your deployment environment:
+
+```bash
+# Required environment variables
+export DATABASE_URL="ecto://USER:PASS@HOST/DATABASE"
+export POOL_SIZE="10"
+
+# Optional
+export ECTO_IPV6="false"  # Set to "true" for IPv6
+```
+
+Configuration in `config/runtime.exs:26-42`:
+
+```elixir
+if config_env() == :prod do
+  database_url =
+    System.get_env("DATABASE_URL") ||
+      raise "environment variable DATABASE_URL is missing"
+
+  config :ash_coffee, AshCoffee.Repo,
+    url: database_url,
+    pool_size: String.to_integer(System.get_env("POOL_SIZE") || "10")
+end
+```
+
+## Environment Variables
+
+### Development
+
+Hardcoded in `config/dev.exs` for convenience:
+
+<CodeGroup>
+```elixir Secret Key Base
+config :ash_coffee, AshCoffeeWeb.Endpoint,
+  secret_key_base: "f1PVrPK/luvnRcinwl/XpS4IkpJq1H1dV6I1l+jmWcyKaAZ7yuYmFXBJtoj80ai7"
+```
+
+```elixir Token Signing Secret
+config :ash_coffee,
+  token_signing_secret: "pZrbSxFjmtdCEjgiZdVRa5adGoBFDQaO"
+```
+</CodeGroup>
+
+<Warning>
+  **Never use these default secrets in production!** They are only for development convenience.
+</Warning>
+
+### Production (Required)
+
+<AccordionGroup>
+  <Accordion title="SECRET_KEY_BASE">
+    Used to sign and encrypt session cookies and other secrets.
+    
+    **Generate a secure secret:**
+    ```bash
+    mix phx.gen.secret
+    ```
+    
+    **Set in production:**
+    ```bash
+    export SECRET_KEY_BASE="your-generated-secret-here"
+    ```
+    
+    Must be at least 64 characters. The application will refuse to start without this in production.
+  </Accordion>
+  
+  <Accordion title="TOKEN_SIGNING_SECRET">
+    Used to sign JWT tokens for authentication.
+    
+    **Generate:**
+    ```bash
+    mix phx.gen.secret
+    ```
+    
+    **Set in production:**
+    ```bash
+    export TOKEN_SIGNING_SECRET="your-token-secret-here"
+    ```
+    
+    Required for AshAuthentication to function. Referenced in `lib/ash_coffee/accounts/user.ex:29`:
+    ```elixir
+    tokens do
+      enabled? true
+      signing_secret AshCoffee.Secrets
+      store_all_tokens? true
+    end
+    ```
+  </Accordion>
+  
+  <Accordion title="DATABASE_URL">
+    Complete PostgreSQL connection string.
+    
+    **Format:**
+    ```bash
+    export DATABASE_URL="ecto://username:password@hostname:5432/database"
+    ```
+    
+    **Example for managed Postgres:**
+    ```bash
+    export DATABASE_URL="ecto://ash_user:secure_password@db.example.com:5432/ash_coffee_prod?ssl=true"
+    ```
+  </Accordion>
+  
+  <Accordion title="PHX_HOST">
+    The hostname for your application.
+    
+    ```bash
+    export PHX_HOST="yourdomain.com"
+    ```
+    
+    Used to generate URLs and configure CORS. Defaults to `example.com` if not set.
+  </Accordion>
+  
+  <Accordion title="PORT">
+    The port your application listens on.
+    
+    ```bash
+    export PORT="4000"
+    ```
+    
+    Defaults to 4000. Many deployment platforms (like Heroku, Fly.io) set this automatically.
+  </Accordion>
+  
+  <Accordion title="PHX_SERVER (Optional)">
+    Set to `true` to automatically start the Phoenix server when running a release.
+    
+    ```bash
+    export PHX_SERVER="true"
+    ```
+    
+    Without this, you need to explicitly start the server in production releases.
+  </Accordion>
+</AccordionGroup>
+
+### Optional Environment Variables
+
+<CardGroup cols={2}>
+  <Card title="DNS_CLUSTER_QUERY" icon="network-wired">
+    For clustered deployments with libcluster:
+    ```bash
+    export DNS_CLUSTER_QUERY="myapp.internal"
+    ```
+  </Card>
+  
+  <Card title="POOL_SIZE" icon="database">
+    Database connection pool size:
+    ```bash
+    export POOL_SIZE="10"
+    ```
+    Default is 10 connections.
+  </Card>
+</CardGroup>
+
+## Asset Compilation
+
+### Development
+
+<Steps>
+  <Step title="Install Asset Tools">
+    ```bash
+    # Install Tailwind CSS and esbuild binaries
+    mix assets.setup
+    ```
+    
+    This downloads the platform-specific binaries for:
+    - Tailwind CSS (for styling)
+    - esbuild (for JavaScript bundling)
+  </Step>
+  
+  <Step title="Build Assets">
+    ```bash
+    # Compile CSS and JavaScript
+    mix assets.build
+    ```
+    
+    <Note>
+      In development, `mix phx.server` automatically watches and rebuilds assets when files change.
+    </Note>
+  </Step>
+</Steps>
+
+### Production
+
+```bash
+# Minify and digest assets for production
+mix assets.deploy
+```
+
+This runs:
+1. `tailwind ash_coffee --minify` - Minify CSS
+2. `esbuild ash_coffee --minify` - Minify JavaScript  
+3. `phx.digest` - Generate digested asset filenames with cache busting
+
+## Complete Setup
+
+The `mix setup` alias runs everything needed to get started:
+
+```bash
+mix setup
+```
+
+This is equivalent to running:
+
+```bash
+mix deps.get           # Install dependencies
+mix ash.setup          # Setup database
+mix assets.setup       # Install asset tools
+mix assets.build       # Compile assets
+mix run priv/repo/seeds.exs  # Seed data
+```
+
+## Verification
+
+### Check Installation
+
+<Steps>
+  <Step title="Compile the Project">
+    ```bash
+    mix compile
+    ```
+    
+    Should complete without errors. First compilation takes 2-3 minutes.
+  </Step>
+  
+  <Step title="Run Tests">
+    ```bash
+    mix test
+    ```
+    
+    All tests should pass. This also verifies database connectivity.
+  </Step>
+  
+  <Step title="Start the Server">
+    ```bash
+    mix phx.server
+    ```
+    
+    Visit [http://localhost:4000](http://localhost:4000) to confirm it's running.
+  </Step>
+</Steps>
+
+### Development Tools
+
+Verify these development endpoints are accessible:
+
+<CardGroup cols={2}>
+  <Card title="LiveDashboard" icon="chart-line" href="http://localhost:4000/dev/dashboard">
+    Real-time metrics, process inspection, and Ecto queries
+  </Card>
+  
+  <Card title="Mailbox Preview" icon="envelope" href="http://localhost:4000/dev/mailbox">
+    Preview authentication emails (password reset, confirmation)
+  </Card>
+  
+  <Card title="Swagger UI" icon="book" href="http://localhost:4000/api/json/swaggerui">
+    Interactive API documentation
+  </Card>
+  
+  <Card title="OpenAPI Spec" icon="file-code" href="http://localhost:4000/api/json/open_api">
+    Raw OpenAPI 3.0 specification
+  </Card>
+</CardGroup>
+
+## Production Deployment
+
+### Build a Release
+
+<Steps>
+  <Step title="Generate Release Configuration">
+    ```bash
+    # Generate release files and startup scripts
+    mix phx.gen.release
+    ```
+    
+    Creates:
+    - `rel/overlays/bin/server` - Startup script
+    - `rel/overlays/bin/server.bat` - Windows startup script
+    - Database migration tasks
+  </Step>
+  
+  <Step title="Set Production Environment Variables">
+    Create a `.env.production` file (don't commit this!):
+    
+    ```bash
+    SECRET_KEY_BASE=your-secret-key-base
+    TOKEN_SIGNING_SECRET=your-token-signing-secret
+    DATABASE_URL=ecto://user:pass@host/database
+    PHX_HOST=yourdomain.com
+    PORT=4000
+    PHX_SERVER=true
+    ```
+  </Step>
+  
+  <Step title="Build the Release">
+    ```bash
+    # Set environment
+    export MIX_ENV=prod
+    
+    # Install dependencies
+    mix deps.get --only prod
+    
+    # Compile the application
+    mix compile
+    
+    # Build assets
+    mix assets.deploy
+    
+    # Create the release
+    mix release
+    ```
+    
+    The release is built in `_build/prod/rel/ash_coffee/`
+  </Step>
+  
+  <Step title="Run Database Migrations">
+    ```bash
+    # On first deployment
+    _build/prod/rel/ash_coffee/bin/ash_coffee eval "AshCoffee.Release.migrate"
+    ```
+  </Step>
+  
+  <Step title="Start the Release">
+    ```bash
+    # Start the server
+    _build/prod/rel/ash_coffee/bin/ash_coffee start
+    
+    # Or run in the foreground
+    _build/prod/rel/ash_coffee/bin/ash_coffee start_iex
+    ```
+  </Step>
+</Steps>
+
+### Deployment Platforms
+
+<AccordionGroup>
+  <Accordion title="Fly.io">
+    1. Install the Fly CLI:
+    ```bash
+    curl -L https://fly.io/install.sh | sh
+    ```
+    
+    2. Launch the app:
+    ```bash
+    fly launch
+    ```
+    
+    3. Set secrets:
+    ```bash
+    fly secrets set SECRET_KEY_BASE=$(mix phx.gen.secret)
+    fly secrets set TOKEN_SIGNING_SECRET=$(mix phx.gen.secret)
+    ```
+    
+    4. Deploy:
+    ```bash
+    fly deploy
+    ```
+  </Accordion>
+  
+  <Accordion title="Heroku">
+    1. Create a new Heroku app:
+    ```bash
+    heroku create ash-coffee-app
+    ```
+    
+    2. Add PostgreSQL:
+    ```bash
+    heroku addons:create heroku-postgresql:mini
+    ```
+    
+    3. Set buildpacks:
+    ```bash
+    heroku buildpacks:add hashnuke/elixir
+    heroku buildpacks:add https://github.com/gjaldon/heroku-buildpack-phoenix-static.git
+    ```
+    
+    4. Set environment variables:
+    ```bash
+    heroku config:set SECRET_KEY_BASE=$(mix phx.gen.secret)
+    heroku config:set TOKEN_SIGNING_SECRET=$(mix phx.gen.secret)
+    heroku config:set PHX_SERVER=true
+    ```
+    
+    5. Deploy:
+    ```bash
+    git push heroku main
+    ```
+  </Accordion>
+  
+  <Accordion title="Docker">
+    Create a `Dockerfile`:
+    
+    ```dockerfile
+    FROM elixir:1.15-alpine AS build
+    
+    # Install build dependencies
+    RUN apk add --no-cache build-base git nodejs npm
+    
+    WORKDIR /app
+    
+    # Install hex and rebar
+    RUN mix local.hex --force && mix local.rebar --force
+    
+    # Copy dependency files
+    COPY mix.exs mix.lock ./
+    RUN mix deps.get --only prod
+    
+    # Copy source
+    COPY . .
+    
+    # Build assets and release
+    RUN mix do compile, assets.deploy, release
+    
+    # Runtime stage
+    FROM alpine:3.18
+    RUN apk add --no-cache openssl ncurses-libs
+    
+    WORKDIR /app
+    
+    COPY --from=build /app/_build/prod/rel/ash_coffee ./
+    
+    CMD ["bin/ash_coffee", "start"]
+    ```
+    
+    Build and run:
+    ```bash
+    docker build -t ash_coffee .
+    docker run -p 4000:4000 -e SECRET_KEY_BASE=... ash_coffee
+    ```
+  </Accordion>
+</AccordionGroup>
+
+## Security Checklist
+
+Before deploying to production:
+
+<Steps>
+  <Step title="Update Secrets">
+    <Check>Generate new `SECRET_KEY_BASE` and `TOKEN_SIGNING_SECRET`</Check>
+    <Check>Never commit secrets to version control</Check>
+    <Check>Use environment variables or secret management</Check>
+  </Step>
+  
+  <Step title="Disable Development Routes">
+    In `config/prod.exs`, ensure:
+    ```elixir
+    config :ash_coffee, dev_routes: false
+    ```
+    
+    This disables `/dev/dashboard` and `/dev/mailbox`.
+  </Step>
+  
+  <Step title="Configure SSL/TLS">
+    <Check>Use HTTPS in production</Check>
+    <Check>Set `force_ssl: [hsts: true]` in endpoint config</Check>
+    <Check>Configure SSL certificates</Check>
+  </Step>
+  
+  <Step title="Email Configuration">
+    Configure a production email adapter in `config/runtime.exs`:
+    ```elixir
+    config :ash_coffee, AshCoffee.Mailer,
+      adapter: Swoosh.Adapters.Mailgun,
+      api_key: System.get_env("MAILGUN_API_KEY"),
+      domain: System.get_env("MAILGUN_DOMAIN")
+    ```
+  </Step>
+  
+  <Step title="Database Security">
+    <Check>Use SSL for database connections</Check>
+    <Check>Restrict database user permissions</Check>
+    <Check>Enable connection pooling</Check>
+  </Step>
+</Steps>
+
+## Troubleshooting
+
+<AccordionGroup>
+  <Accordion title="Dependencies Won't Compile">
+    **Symptom**: Errors during `mix deps.get` or `mix compile`
+    
+    **Solutions**:
+    ```bash
+    # Clean build artifacts
+    mix clean
+    
+    # Clean dependencies
+    mix deps.clean --all
+    
+    # Reinstall
+    mix deps.get
+    mix compile
+    ```
+    
+    Ensure you have the correct Elixir and Erlang versions installed.
+  </Accordion>
+  
+  <Accordion title="Database Migration Errors">
+    **Symptom**: `mix ash.setup` fails
+    
+    **Solutions**:
+    ```bash
+    # Check PostgreSQL is running
+    # macOS:
+    brew services list
+    
+    # Linux:
+    sudo systemctl status postgresql
+    
+    # Verify credentials in config/dev.exs
+    # Try connecting manually:
+    psql -U martha_pop -d postgres -h localhost
+    ```
+    
+    If the database exists but is in a bad state:
+    ```bash
+    mix ash.drop
+    mix ash.setup
+    ```
+  </Accordion>
+  
+  <Accordion title="Asset Compilation Issues">
+    **Symptom**: Missing CSS/JavaScript in the browser
+    
+    **Solutions**:
+    ```bash
+    # Reinstall asset tools
+    rm -rf assets/node_modules
+    mix assets.setup
+    
+    # Rebuild
+    mix assets.build
+    
+    # Check for port conflicts on asset watchers
+    # Kill any stuck processes:
+    pkill -f esbuild
+    pkill -f tailwind
+    ```
+  </Accordion>
+  
+  <Accordion title="Token Signing Errors">
+    **Symptom**: "Missing environment variable `TOKEN_SIGNING_SECRET`"
+    
+    **Solutions**:
+    - In development: Set in `config/dev.exs`
+    - In production: Set as environment variable
+    
+    ```bash
+    # Generate a secret:
+    mix phx.gen.secret
+    
+    # Set in environment:
+    export TOKEN_SIGNING_SECRET="your-secret-here"
+    ```
+  </Accordion>
+</AccordionGroup>
+
+## Additional Resources
+
+<CardGroup cols={2}>
+  <Card title="Ash Framework" icon="book" href="https://hexdocs.pm/ash">
+    Official Ash Framework documentation
+  </Card>
+  
+  <Card title="Phoenix Guides" icon="phoenix-framework" href="https://hexdocs.pm/phoenix">
+    Phoenix framework documentation
+  </Card>
+  
+  <Card title="AshAuthentication" icon="lock" href="https://hexdocs.pm/ash_authentication">
+    Authentication system docs
+  </Card>
+  
+  <Card title="Deployment Guide" icon="rocket" href="https://hexdocs.pm/phoenix/deployment.html">
+    Phoenix deployment guide
+  </Card>
+</CardGroup>
+
+<Note>
+  After installation, check out the [Quick Start Guide](/quickstart) to start building with Ash Coffee.
+</Note>

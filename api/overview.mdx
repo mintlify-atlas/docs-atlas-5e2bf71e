@@ -1,0 +1,124 @@
+---
+title: 'API Overview'
+description: 'Introduction to the Ash Coffee JSON API'
+icon: 'code'
+---
+
+The Ash Coffee API provides a comprehensive JSON API for managing users, authentication, and tokens. Built with Ash Framework and Phoenix, the API follows JSON:API specifications and provides interactive documentation through Swagger UI.
+
+## Base URL
+
+The API is available at the following base URL:
+
+```
+http://localhost:4000/api/json
+```
+
+All API endpoints are relative to this base URL.
+
+## JSON:API Format
+
+The Ash Coffee API follows the [JSON:API specification](https://jsonapi.org/). This means:
+
+- Resources are returned with a standardized structure
+- Relationships between resources are properly linked
+- Error responses follow a consistent format
+- Filtering, sorting, and pagination are supported
+
+### Standard Response Format
+
+Successful responses typically follow this structure:
+
+```json
+{
+  "data": {
+    "type": "user",
+    "id": "123e4567-e89b-12d3-a456-426614174000",
+    "attributes": {
+      "email": "user@example.com",
+      "confirmed_at": "2026-03-03T10:30:00Z"
+    }
+  }
+}
+```
+
+### Error Response Format
+
+Error responses follow this structure:
+
+```json
+{
+  "errors": [
+    {
+      "title": "Invalid credentials",
+      "detail": "The email or password provided is incorrect",
+      "status": "401"
+    }
+  ]
+}
+```
+
+## Interactive Documentation
+
+### Swagger UI
+
+Ash Coffee provides an interactive Swagger UI for exploring and testing the API. Access it at:
+
+```
+http://localhost:4000/api/json/swaggerui
+```
+
+The Swagger UI allows you to:
+
+- View all available endpoints
+- See detailed request/response schemas
+- Try out API calls directly from your browser
+- View example requests and responses
+
+### OpenAPI Specification
+
+The OpenAPI specification is available at:
+
+```
+http://localhost:4000/api/json/open_api
+```
+
+You can use this specification with tools like Postman, Insomnia, or code generators.
+
+## Authentication
+
+Most API endpoints require authentication via Bearer tokens. See the [Authentication](/api/authentication) page for detailed information on how to authenticate your requests.
+
+<Note>
+  The API uses JWT (JSON Web Tokens) for authentication. Include your token in the `Authorization` header of your requests.
+</Note>
+
+## Rate Limiting
+
+<Note>
+  Currently, there are no rate limits enforced on the API. This may change in production environments.
+</Note>
+
+## Resources
+
+The API exposes the following main resources:
+
+<CardGroup cols={2}>
+  <Card title="Users" icon="user" href="/api/endpoints/users">
+    Manage user accounts, registration, and authentication
+  </Card>
+  <Card title="Tokens" icon="key" href="/api/endpoints/tokens">
+    Manage authentication tokens and token revocation
+  </Card>
+</CardGroup>
+
+## Next Steps
+
+<CardGroup cols={2}>
+  <Card title="Authentication" icon="lock" href="/api/authentication">
+    Learn how to authenticate API requests
+  </Card>
+  <Card title="User Endpoints" icon="code" href="/api/endpoints/users">
+    Explore user-related API endpoints
+  </Card>
+</CardGroup>

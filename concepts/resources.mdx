@@ -1,0 +1,351 @@
+---
+title: 'Resources'
+description: 'Learn about Ash Resources using real User and Token examples from AshCoffee'
+---
+
+## What are Resources?
+
+Resources are the fundamental building blocks of Ash Framework applications. They represent your domain entities - like Users, Products, Orders - and define:
+
+- **Attributes**: The data fields each resource has
+- **Actions**: Operations you can perform on the resource
+- **Relationships**: Connections to other resources
+- **Validations**: Rules to ensure data integrity
+- **Policies**: Authorization rules for access control
+
+## The User Resource
+
+Let's examine AshCoffee's User resource to understand how resources work:
+
+```elixir lib/ash_coffee/accounts/user.ex
+defmodule AshCoffee.Accounts.User do
+  use Ash.Resource,
+    otp_app: :ash_coffee,
+    domain: AshCoffee.Accounts,
+    data_layer: AshPostgres.DataLayer,
+    authorizers: [Ash.Policy.Authorizer],
+    extensions: [AshAuthentication]
+end
+```
+
+<Info>
+  The `use Ash.Resource` declaration transforms this module into a complete Ash resource with all the framework capabilities.
+</Info>
+
+### Resource Configuration
+
+<AccordionGroup>
+  <Accordion title="otp_app">
+    Specifies which OTP application this resource belongs to. Used for configuration lookup.
+    
+    ```elixir
+    otp_app: :ash_coffee
+    ```
+  </Accordion>
+  
+  <Accordion title="domain">
+    Associates the resource with a domain. The User belongs to the `Accounts` domain.
+    
+    ```elixir
+    domain: AshCoffee.Accounts
+    ```
+  </Accordion>
+  
+  <Accordion title="data_layer">
+    Specifies how data is stored. AshCoffee uses PostgreSQL through the `AshPostgres` extension.
+    
+    ```elixir
+    data_layer: AshPostgres.DataLayer
+    ```
+  </Accordion>
+  
+  <Accordion title="authorizers">
+    Enables policy-based authorization for controlling access to resources.
+    
+    ```elixir
+    authorizers: [Ash.Policy.Authorizer]
+    ```
+  </Accordion>
+  
+  <Accordion title="extensions">
+    Extensions add functionality. `AshAuthentication` adds complete auth workflows to the User.
+    
+    ```elixir
+    extensions: [AshAuthentication]
+    ```
+  </Accordion>
+</AccordionGroup>
+
+## Defining Attributes
+
+Attributes are the data fields on your resource. Here are the User attributes:
+
+```elixir lib/ash_coffee/accounts/user.ex
+attributes do
+  uuid_primary_key :id
+
+  attribute :email, :ci_string do
+    allow_nil? false
+    public? true
+  end
+
+  attribute :hashed_password, :string do
+    allow_nil? false
+    sensitive? true
+  end
+
+  attribute :confirmed_at, :utc_datetime_usec
+end
+```
+
+<Tabs>
+  <Tab title="Primary Key">
+    ```elixir
+    uuid_primary_key :id
+    ```
+    
+    Creates a UUID primary key field. Ash automatically generates unique IDs for new records.
+  </Tab>
+  
+  <Tab title="Email Field">
+    ```elixir
+    attribute :email, :ci_string do
+      allow_nil? false
+      public? true
+    end
+    ```
+    
+    - `:ci_string` - Case-insensitive string type
+    - `allow_nil? false` - Email is required
+    - `public? true` - Can be set by external input
+  </Tab>
+  
+  <Tab title="Password Field">
+    ```elixir
+    attribute :hashed_password, :string do
+      allow_nil? false
+      sensitive? true
+    end
+    ```
+    
+    - `sensitive? true` - Excluded from logs and error messages
+    - Stores the bcrypt hash, not the plain password
+  </Tab>
+  
+  <Tab title="Timestamp Field">
+    ```elixir
+    attribute :confirmed_at, :utc_datetime_usec
+    ```
+    
+    Tracks when the user confirmed their email. `nil` means unconfirmed.
+  </Tab>
+</Tabs>
+
+## The Token Resource
+
+The Token resource stores authentication tokens:
+
+```elixir lib/ash_coffee/accounts/token.ex
+defmodule AshCoffee.Accounts.Token do
+  use Ash.Resource,
+    otp_app: :ash_coffee,
+    domain: AshCoffee.Accounts,
+    data_layer: AshPostgres.DataLayer,
+    authorizers: [Ash.Policy.Authorizer],
+    extensions: [AshAuthentication.TokenResource]
+
+  attributes do
+    attribute :jti, :string do
+      primary_key? true
+      public? true
+      allow_nil? false
+      sensitive? true
+    end
+
+    attribute :subject, :string do
+      allow_nil? false
+      public? true
+    end
+
+    attribute :expires_at, :utc_datetime do
+      allow_nil? false
+      public? true
+    end
+
+    attribute :purpose, :string do
+      allow_nil? false
+      public? true
+    end
+
+    attribute :extra_data, :map do
+      public? true
+    end
+
+    create_timestamp :created_at
+    update_timestamp :updated_at
+  end
+end
+```
+
+<Note>
+  The Token resource uses `AshAuthentication.TokenResource` extension, which provides specialized actions for token management like revocation and expiry checks.
+</Note>
+
+### Token Attributes Explained
+
+| Attribute | Type | Purpose |
+|-----------|------|--------|
+| `jti` | String (PK) | JWT ID - unique identifier for each token |
+| `subject` | String | User ID this token belongs to |
+| `expires_at` | DateTime | When the token expires |
+| `purpose` | String | Token type: "access", "refresh", "reset", etc. |
+| `extra_data` | Map | Additional metadata stored with the token |
+| `created_at` | DateTime | When the token was created |
+| `updated_at` | DateTime | Last modification time |
+
+## Data Layer Configuration
+
+Both resources configure their PostgreSQL storage:
+
+<Tabs>
+  <Tab title="User Table">
+    ```elixir lib/ash_coffee/accounts/user.ex
+    postgres do
+      table "users"
+      repo AshCoffee.Repo
+    end
+    ```
+    
+    Maps the User resource to the `users` table using `AshCoffee.Repo`.
+  </Tab>
+  
+  <Tab title="Token Table">
+    ```elixir lib/ash_coffee/accounts/token.ex
+    postgres do
+      table "tokens"
+      repo AshCoffee.Repo
+    end
+    ```
+    
+    Maps the Token resource to the `tokens` table using `AshCoffee.Repo`.
+  </Tab>
+</Tabs>
+
+## Identities
+
+Identities ensure uniqueness constraints:
+
+```elixir lib/ash_coffee/accounts/user.ex
+identities do
+  identity :unique_email, [:email]
+end
+```
+
+This creates a unique index on the email field, preventing duplicate registrations.
+
+## Resource Policies
+
+Policies control who can access resources:
+
+```elixir lib/ash_coffee/accounts/user.ex
+policies do
+  bypass AshAuthentication.Checks.AshAuthenticationInteraction do
+    authorize_if always()
+  end
+end
+```
+
+<Info>
+  This policy allows the AshAuthentication system to interact with the User resource during auth flows. Without this, login and registration would fail authorization.
+</Info>
+
+The Token resource has a similar policy:
+
+```elixir lib/ash_coffee/accounts/token.ex
+policies do
+  bypass AshAuthentication.Checks.AshAuthenticationInteraction do
+    description "AshAuthentication can interact with the token resource"
+    authorize_if always()
+  end
+end
+```
+
+## Authentication Configuration
+
+The User resource includes extensive authentication setup:
+
+```elixir lib/ash_coffee/accounts/user.ex
+authentication do
+  tokens do
+    enabled? true
+    token_resource AshCoffee.Accounts.Token
+    signing_secret AshCoffee.Secrets
+    store_all_tokens? true
+    require_token_presence_for_authentication? true
+  end
+
+  strategies do
+    password :password do
+      identity_field :email
+      hash_provider AshAuthentication.BcryptProvider
+    end
+
+    remember_me :remember_me
+  end
+
+  add_ons do
+    confirmation :confirm_new_user do
+      monitor_fields [:email]
+      confirm_on_create? true
+      confirmed_at_field :confirmed_at
+      sender AshCoffee.Accounts.User.Senders.SendNewUserConfirmationEmail
+    end
+  end
+end
+```
+
+<Steps>
+  <Step title="Token Configuration">
+    Enables JWT tokens stored in the Token resource, with all tokens persisted to the database.
+  </Step>
+  
+  <Step title="Password Strategy">
+    Uses email as the identity field and bcrypt for password hashing.
+  </Step>
+  
+  <Step title="Remember Me">
+    Adds long-lived session support for "remember me" functionality.
+  </Step>
+  
+  <Step title="Email Confirmation">
+    Requires users to confirm their email before full access.
+  </Step>
+</Steps>
+
+## Key Takeaways
+
+<CardGroup cols={2}>
+  <Card title="Declarative" icon="file-code">
+    Resources are declared, not implemented. Ash generates the functionality.
+  </Card>
+  <Card title="Type Safe" icon="shield-check">
+    Attributes have strict types with automatic validation.
+  </Card>
+  <Card title="Extensible" icon="puzzle-piece">
+    Extensions like AshAuthentication add powerful features declaratively.
+  </Card>
+  <Card title="Database Agnostic" icon="database">
+    Data layers are pluggable - swap PostgreSQL for ETS or other stores.
+  </Card>
+</CardGroup>
+
+## Next Steps
+
+<CardGroup cols={2}>
+  <Card title="Actions" icon="bolt" href="/concepts/actions">
+    Learn how actions define operations on resources
+  </Card>
+  <Card title="Domains" icon="layer-group" href="/concepts/domains">
+    Review how domains group resources together
+  </Card>
+</CardGroup>

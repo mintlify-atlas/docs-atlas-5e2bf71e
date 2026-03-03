@@ -1,0 +1,575 @@
+---
+title: 'User Endpoints'
+description: 'API endpoints for user management and authentication'
+icon: 'user'
+---
+
+The User endpoints provide functionality for user registration, authentication, profile management, and password operations.
+
+## Register a New User
+
+Create a new user account with email and password.
+
+### Endpoint
+
+```
+POST /api/json/users
+```
+
+### Authentication
+
+No authentication required.
+
+### Request Body
+
+<ParamField body="data.type" type="string" required>
+  Must be `"user"`
+</ParamField>
+
+<ParamField body="data.attributes.email" type="string" required>
+  User's email address (case-insensitive)
+</ParamField>
+
+<ParamField body="data.attributes.password" type="string" required>
+  Password (minimum 8 characters)
+</ParamField>
+
+<ParamField body="data.attributes.password_confirmation" type="string" required>
+  Must match the password field
+</ParamField>
+
+### Example Request
+
+<CodeGroup>
+```bash cURL
+curl -X POST http://localhost:4000/api/json/users \
+  -H "Content-Type: application/json" \
+  -d '{
+    "data": {
+      "type": "user",
+      "attributes": {
+        "email": "newuser@example.com",
+        "password": "securepassword123",
+        "password_confirmation": "securepassword123"
+      }
+    }
+  }'
+```
+
+```javascript JavaScript
+const response = await fetch('http://localhost:4000/api/json/users', {
+  method: 'POST',
+  headers: {
+    'Content-Type': 'application/json'
+  },
+  body: JSON.stringify({
+    data: {
+      type: 'user',
+      attributes: {
+        email: 'newuser@example.com',
+        password: 'securepassword123',
+        password_confirmation: 'securepassword123'
+      }
+    }
+  })
+});
+
+const data = await response.json();
+```
+
+```python Python
+import requests
+
+response = requests.post(
+    'http://localhost:4000/api/json/users',
+    json={
+        'data': {
+            'type': 'user',
+            'attributes': {
+                'email': 'newuser@example.com',
+                'password': 'securepassword123',
+                'password_confirmation': 'securepassword123'
+            }
+        }
+    }
+)
+
+data = response.json()
+```
+</CodeGroup>
+
+### Response
+
+<ResponseField name="data.type" type="string">
+  Resource type: `"user"`
+</ResponseField>
+
+<ResponseField name="data.id" type="string">
+  Unique user identifier (UUID)
+</ResponseField>
+
+<ResponseField name="data.attributes.email" type="string">
+  User's email address
+</ResponseField>
+
+<ResponseField name="data.attributes.confirmed_at" type="string">
+  Timestamp when email was confirmed (null if not confirmed)
+</ResponseField>
+
+<ResponseField name="meta.token" type="string">
+  JWT authentication token for the newly created user
+</ResponseField>
+
+```json
+{
+  "data": {
+    "type": "user",
+    "id": "123e4567-e89b-12d3-a456-426614174000",
+    "attributes": {
+      "email": "newuser@example.com",
+      "confirmed_at": null
+    }
+  },
+  "meta": {
+    "token": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9..."
+  }
+}
+```
+
+<Note>
+  A confirmation email is sent to the user's email address. The user may need to confirm their email before accessing certain features.
+</Note>
+
+---
+
+## Sign In with Password
+
+Authenticate a user with email and password.
+
+### Endpoint
+
+```
+GET /api/json/users?action=sign_in_with_password
+```
+
+### Authentication
+
+No authentication required.
+
+### Request Parameters
+
+<ParamField body="email" type="string" required>
+  User's email address (case-insensitive)
+</ParamField>
+
+<ParamField body="password" type="string" required>
+  User's password
+</ParamField>
+
+### Example Request
+
+<CodeGroup>
+```bash cURL
+curl -X GET "http://localhost:4000/api/json/users?action=sign_in_with_password" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "email": "user@example.com",
+    "password": "securepassword123"
+  }'
+```
+
+```javascript JavaScript
+const response = await fetch(
+  'http://localhost:4000/api/json/users?action=sign_in_with_password',
+  {
+    method: 'GET',
+    headers: {
+      'Content-Type': 'application/json'
+    },
+    body: JSON.stringify({
+      email: 'user@example.com',
+      password: 'securepassword123'
+    })
+  }
+);
+
+const data = await response.json();
+```
+
+```python Python
+import requests
+
+response = requests.get(
+    'http://localhost:4000/api/json/users',
+    params={'action': 'sign_in_with_password'},
+    json={
+        'email': 'user@example.com',
+        'password': 'securepassword123'
+    }
+)
+
+data = response.json()
+```
+</CodeGroup>
+
+### Response
+
+```json
+{
+  "data": {
+    "type": "user",
+    "id": "123e4567-e89b-12d3-a456-426614174000",
+    "attributes": {
+      "email": "user@example.com",
+      "confirmed_at": "2026-03-03T10:30:00Z"
+    }
+  },
+  "meta": {
+    "token": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9..."
+  }
+}
+```
+
+---
+
+## Get User by ID
+
+Retrieve a specific user's information.
+
+### Endpoint
+
+```
+GET /api/json/users/{id}
+```
+
+### Authentication
+
+Bearer token required.
+
+### Path Parameters
+
+<ParamField path="id" type="string" required>
+  User ID (UUID)
+</ParamField>
+
+### Example Request
+
+<CodeGroup>
+```bash cURL
+curl http://localhost:4000/api/json/users/123e4567-e89b-12d3-a456-426614174000 \
+  -H "Authorization: Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9..."
+```
+
+```javascript JavaScript
+const response = await fetch(
+  'http://localhost:4000/api/json/users/123e4567-e89b-12d3-a456-426614174000',
+  {
+    headers: {
+      'Authorization': 'Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...'
+    }
+  }
+);
+
+const data = await response.json();
+```
+
+```python Python
+import requests
+
+response = requests.get(
+    'http://localhost:4000/api/json/users/123e4567-e89b-12d3-a456-426614174000',
+    headers={
+        'Authorization': 'Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...'
+    }
+)
+
+data = response.json()
+```
+</CodeGroup>
+
+### Response
+
+```json
+{
+  "data": {
+    "type": "user",
+    "id": "123e4567-e89b-12d3-a456-426614174000",
+    "attributes": {
+      "email": "user@example.com",
+      "confirmed_at": "2026-03-03T10:30:00Z"
+    }
+  }
+}
+```
+
+---
+
+## Get User by Email
+
+Retrieve a user by their email address.
+
+### Endpoint
+
+```
+GET /api/json/users?action=get_by_email&email={email}
+```
+
+### Authentication
+
+Bearer token required.
+
+### Query Parameters
+
+<ParamField query="email" type="string" required>
+  User's email address
+</ParamField>
+
+### Example Request
+
+```bash
+curl "http://localhost:4000/api/json/users?action=get_by_email&email=user@example.com" \
+  -H "Authorization: Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9..."
+```
+
+---
+
+## Change Password
+
+Update a user's password by providing their current password.
+
+### Endpoint
+
+```
+PATCH /api/json/users/{id}
+```
+
+### Authentication
+
+Bearer token required (user must be authenticated).
+
+### Path Parameters
+
+<ParamField path="id" type="string" required>
+  User ID (UUID)
+</ParamField>
+
+### Request Body
+
+<ParamField body="current_password" type="string" required>
+  User's current password for verification
+</ParamField>
+
+<ParamField body="password" type="string" required>
+  New password (minimum 8 characters)
+</ParamField>
+
+<ParamField body="password_confirmation" type="string" required>
+  Must match the new password
+</ParamField>
+
+### Example Request
+
+```bash
+curl -X PATCH http://localhost:4000/api/json/users/123e4567-e89b-12d3-a456-426614174000 \
+  -H "Authorization: Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9..." \
+  -H "Content-Type: application/json" \
+  -d '{
+    "current_password": "oldpassword123",
+    "password": "newsecurepassword456",
+    "password_confirmation": "newsecurepassword456"
+  }'
+```
+
+<Warning>
+  Changing a password revokes all existing authentication tokens. The user will need to sign in again on all devices.
+</Warning>
+
+---
+
+## Request Password Reset
+
+Request a password reset token to be sent to the user's email.
+
+### Endpoint
+
+```
+POST /api/json/users/request_password_reset_token
+```
+
+### Authentication
+
+No authentication required.
+
+### Request Body
+
+<ParamField body="email" type="string" required>
+  Email address of the account to reset
+</ParamField>
+
+### Example Request
+
+```bash
+curl -X POST http://localhost:4000/api/json/users/request_password_reset_token \
+  -H "Content-Type: application/json" \
+  -d '{
+    "email": "user@example.com"
+  }'
+```
+
+<Note>
+  For security reasons, this endpoint always returns success even if the email doesn't exist in the system.
+</Note>
+
+---
+
+## Reset Password with Token
+
+Reset a user's password using a reset token received via email.
+
+### Endpoint
+
+```
+POST /api/json/users/reset_password_with_token
+```
+
+### Authentication
+
+No authentication required (uses reset token instead).
+
+### Request Body
+
+<ParamField body="reset_token" type="string" required>
+  Token received via email
+</ParamField>
+
+<ParamField body="password" type="string" required>
+  New password (minimum 8 characters)
+</ParamField>
+
+<ParamField body="password_confirmation" type="string" required>
+  Must match the new password
+</ParamField>
+
+### Example Request
+
+```bash
+curl -X POST http://localhost:4000/api/json/users/reset_password_with_token \
+  -H "Content-Type: application/json" \
+  -d '{
+    "reset_token": "token-from-email",
+    "password": "newsecurepassword456",
+    "password_confirmation": "newsecurepassword456"
+  }'
+```
+
+### Response
+
+```json
+{
+  "data": {
+    "type": "user",
+    "id": "123e4567-e89b-12d3-a456-426614174000",
+    "attributes": {
+      "email": "user@example.com",
+      "confirmed_at": "2026-03-03T10:30:00Z"
+    }
+  },
+  "meta": {
+    "token": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9..."
+  }
+}
+```
+
+---
+
+## Get User by Subject
+
+Retrieve a user by the subject claim in a JWT token.
+
+### Endpoint
+
+```
+GET /api/json/users?action=get_by_subject&subject={subject}
+```
+
+### Authentication
+
+Bearer token required.
+
+### Query Parameters
+
+<ParamField query="subject" type="string" required>
+  Subject claim from JWT (typically the user ID)
+</ParamField>
+
+### Example Request
+
+```bash
+curl "http://localhost:4000/api/json/users?action=get_by_subject&subject=123e4567-e89b-12d3-a456-426614174000" \
+  -H "Authorization: Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9..."
+```
+
+---
+
+## Error Responses
+
+### 400 Bad Request
+
+```json
+{
+  "errors": [
+    {
+      "title": "Validation Error",
+      "detail": "Password must be at least 8 characters",
+      "status": "400",
+      "source": {
+        "pointer": "/data/attributes/password"
+      }
+    }
+  ]
+}
+```
+
+### 401 Unauthorized
+
+```json
+{
+  "errors": [
+    {
+      "title": "Authentication Error",
+      "detail": "Invalid email or password",
+      "status": "401"
+    }
+  ]
+}
+```
+
+### 422 Unprocessable Entity
+
+```json
+{
+  "errors": [
+    {
+      "title": "Invalid Input",
+      "detail": "Email has already been taken",
+      "status": "422",
+      "source": {
+        "pointer": "/data/attributes/email"
+      }
+    }
+  ]
+}
+```
+
+---
+
+## Related Resources
+
+<CardGroup cols={2}>
+  <Card title="User Resource Schema" icon="database" href="/api/resources/user-resource">
+    View the complete User resource schema
+  </Card>
+  <Card title="Authentication Guide" icon="lock" href="/api/authentication">
+    Learn about authentication and tokens
+  </Card>
+</CardGroup>

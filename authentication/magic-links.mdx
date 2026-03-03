@@ -1,0 +1,298 @@
+---
+title: Magic Link Authentication
+description: Implement passwordless authentication with email-based magic links
+---
+
+## Overview
+
+While Ash Coffee's primary authentication is password-based, the system is designed to support magic link authentication. Magic links are mentioned in the email confirmation configuration and can be extended for passwordless sign-in.
+
+## Magic Link Configuration
+
+The User resource includes auto-confirmation for magic link actions:
+
+```elixir lib/ash_coffee/accounts/user.ex
+authentication do
+  add_ons do
+    confirmation :confirm_new_user do
+      monitor_fields [:email]
+      confirm_on_create? true
+      confirm_on_update? false
+      require_interaction? true
+      confirmed_at_field :confirmed_at
+      # Magic link action is auto-confirmed
+      auto_confirm_actions [:sign_in_with_magic_link, :reset_password_with_token]
+      sender AshCoffee.Accounts.User.Senders.SendNewUserConfirmationEmail
+    end
+  end
+end
+```
+
+<Note>
+The `sign_in_with_magic_link` action is referenced in the auto-confirm configuration, indicating the system is prepared for magic link authentication.
+</Note>
+
+## How Magic Links Work
+
+Magic links provide passwordless authentication through a token sent via email:
+
+<Steps>
+  <Step title="User Requests Magic Link">
+    User enters their email address and requests a sign-in link.
+    
+    The system generates a short-lived token and sends it via email.
+  </Step>
+  
+  <Step title="Token Generation">
+    A secure, time-limited token is created and associated with the user's email.
+    
+    The token is stored in the Token resource with a specific purpose.
+  </Step>
+  
+  <Step title="Email Delivery">
+    An email containing the magic link is sent to the user's email address.
+    
+    The link includes the token as a parameter.
+  </Step>
+  
+  <Step title="Token Validation">
+    User clicks the magic link, which validates the token.
+    
+    If valid, the user is automatically authenticated and a JWT is issued.
+  </Step>
+</Steps>
+
+## Implementation Guide
+
+To fully implement magic link authentication, you would create a custom action:
+
+<CodeGroup>
+```elixir Define Action
+# In lib/ash_coffee/accounts/user.ex
+
+action :request_magic_link do
+  description "Request a magic link for passwordless sign in"
+  
+  argument :email, :ci_string do
+    allow_nil? false
+  end
+  
+  run fn input, _context ->
+    email = input.arguments.email
+    
+    # Look up user by email
+    case AshCoffee.Accounts.User
+         |> Ash.Query.for_read(:get_by_email, %{email: email})
+         |> Ash.read_one() do
+      {:ok, user} ->
+        # Generate magic link token
+        token = AshAuthentication.Jwt.generate_token(
+          user,
+          purpose: "magic_link",
+          expires_in: 15 * 60 # 15 minutes
+        )
+        
+        # Send magic link email
+        send_magic_link_email(user, token)
+        {:ok, nil}
+        
+      _ ->
+        # Don't reveal if email exists
+        {:ok, nil}
+    end
+  end
+end
+
+read :sign_in_with_magic_link do
+  description "Sign in using a magic link token"
+  get? true
+  
+  argument :token, :string do
+    allow_nil? false
+    sensitive? true
+  end
+  
+  prepare fn query, _context ->
+    # Validate and decode the magic link token
+    # Return the user and generate a new JWT token
+  end
+  
+  metadata :token, :string do
+    description "A JWT that can be used to authenticate the user."
+    allow_nil? false
+  end
+end
+```
+
+```elixir Request Magic Link
+# Request a magic link
+AshCoffee.Accounts.User
+|> Ash.ActionInput.for_action(:request_magic_link, %{
+  email: "user@example.com"
+})
+|> Ash.run_action()
+
+# Returns {:ok, nil} regardless of email existence
+```
+
+```elixir Verify Magic Link
+# Sign in with magic link token
+case AshCoffee.Accounts.User
+     |> Ash.Query.for_read(:sign_in_with_magic_link, %{
+       token: magic_link_token
+     })
+     |> Ash.read_one() do
+  {:ok, user} ->
+    # Magic link sign in successful
+    jwt_token = user.__metadata__.token
+    {:ok, user, jwt_token}
+    
+  {:error, _error} ->
+    # Invalid or expired magic link
+    {:error, :invalid_magic_link}
+end
+```
+</CodeGroup>
+
+## Token Security
+
+Magic link tokens should be:
+
+<AccordionGroup>
+  <Accordion title="Short-Lived">
+    Magic link tokens should expire quickly (typically 15-30 minutes) to minimize the risk window.
+    
+    ```elixir
+    expires_in: 15 * 60 # 15 minutes
+    ```
+  </Accordion>
+  
+  <Accordion title="Single-Use">
+    Tokens should be invalidated immediately after use to prevent replay attacks.
+    
+    After successful sign-in, revoke the magic link token:
+    
+    ```elixir
+    AshCoffee.Accounts.Token
+    |> Ash.Changeset.for_create(:revoke_token, %{token: magic_link_token})
+    |> Ash.create()
+    ```
+  </Accordion>
+  
+  <Accordion title="Purpose-Specific">
+    Store tokens with a specific purpose to prevent token confusion attacks.
+    
+    ```elixir
+    purpose: "magic_link"
+    ```
+  </Accordion>
+  
+  <Accordion title="Cryptographically Secure">
+    Use strong random token generation provided by AshAuthentication.
+  </Accordion>
+</AccordionGroup>
+
+## Email Template Example
+
+A magic link email should be clear and include security information:
+
+```html Email Template
+<!DOCTYPE html>
+<html>
+<head>
+  <title>Sign in to Ash Coffee</title>
+</head>
+<body>
+  <h1>Your Magic Link</h1>
+  
+  <p>Click the button below to sign in to Ash Coffee:</p>
+  
+  <a href="https://ashcoffee.com/auth/magic-link?token=<%= @token %>" 
+     style="background: #4F46E5; color: white; padding: 12px 24px; text-decoration: none; border-radius: 6px; display: inline-block;">
+    Sign In to Ash Coffee
+  </a>
+  
+  <p style="color: #6B7280; font-size: 14px; margin-top: 24px;">
+    This link will expire in 15 minutes and can only be used once.
+  </p>
+  
+  <p style="color: #6B7280; font-size: 14px;">
+    If you didn't request this link, you can safely ignore this email.
+  </p>
+</body>
+</html>
+```
+
+## Advantages of Magic Links
+
+<CardGroup cols={2}>
+  <Card title="No Password to Remember" icon="brain">
+    Users don't need to create or remember passwords, reducing friction
+  </Card>
+  
+  <Card title="No Password to Steal" icon="shield">
+    No password means no risk of password database breaches
+  </Card>
+  
+  <Card title="Email Verification" icon="envelope-circle-check">
+    Proves the user has access to the email address
+  </Card>
+  
+  <Card title="Mobile Friendly" icon="mobile">
+    Works seamlessly on mobile devices without typing complex passwords
+  </Card>
+</CardGroup>
+
+## Considerations
+
+<Warning>
+**Email Security is Critical**
+
+Magic links are only as secure as the user's email account. If an attacker gains access to the email account, they can authenticate as the user.
+
+Consider:
+- Educating users about email security
+- Implementing additional security for sensitive actions
+- Offering 2FA as an option for high-security accounts
+</Warning>
+
+<Note>
+**Rate Limiting Required**
+
+Implement aggressive rate limiting on magic link requests to prevent:
+- Email bombing attacks
+- Enumeration of valid email addresses
+- Resource exhaustion
+
+Limit requests to 3-5 per hour per email address.
+</Note>
+
+## Combining with Password Auth
+
+Magic links work best alongside password authentication:
+
+<Steps>
+  <Step title="Primary Authentication">
+    Users can choose their preferred method: password or magic link
+  </Step>
+  
+  <Step title="Password Recovery">
+    Magic links can serve as an alternative to traditional password reset
+  </Step>
+  
+  <Step title="Quick Access">
+    Users can request a magic link for quick sign-in on trusted devices
+  </Step>
+</Steps>
+
+## Related Topics
+
+<CardGroup cols={2}>
+  <Card title="Password Authentication" icon="key" href="/authentication/password-auth">
+    Learn about traditional password-based authentication
+  </Card>
+  
+  <Card title="Token Management" icon="shield-check" href="/authentication/tokens">
+    Understand JWT tokens and token storage
+  </Card>
+</CardGroup>

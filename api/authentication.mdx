@@ -1,0 +1,230 @@
+---
+title: 'Authentication'
+description: 'How to authenticate with the Ash Coffee API'
+icon: 'lock'
+---
+
+The Ash Coffee API uses JWT (JSON Web Tokens) for authentication. This guide explains how to obtain and use authentication tokens.
+
+## Authentication Flow
+
+The typical authentication flow consists of:
+
+1. **Register** a new user account or **sign in** with existing credentials
+2. Receive a JWT token in the response
+3. Include the token in subsequent API requests
+
+## Obtaining a Token
+
+There are several ways to obtain an authentication token:
+
+### 1. Register a New User
+
+When you register a new user via the `/api/json/users` endpoint with the `register_with_password` action, you receive a token in the response metadata.
+
+```bash
+curl -X POST http://localhost:4000/api/json/users \
+  -H "Content-Type: application/json" \
+  -d '{
+    "data": {
+      "type": "user",
+      "attributes": {
+        "email": "user@example.com",
+        "password": "securepassword123",
+        "password_confirmation": "securepassword123"
+      }
+    }
+  }'
+```
+
+**Response:**
+
+```json
+{
+  "data": {
+    "type": "user",
+    "id": "123e4567-e89b-12d3-a456-426614174000",
+    "attributes": {
+      "email": "user@example.com",
+      "confirmed_at": null
+    }
+  },
+  "meta": {
+    "token": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9..."
+  }
+}
+```
+
+### 2. Sign In with Email and Password
+
+Use the `sign_in_with_password` action to authenticate with existing credentials:
+
+```bash
+curl -X GET "http://localhost:4000/api/json/users?action=sign_in_with_password" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "email": "user@example.com",
+    "password": "securepassword123"
+  }'
+```
+
+**Response:**
+
+```json
+{
+  "data": {
+    "type": "user",
+    "id": "123e4567-e89b-12d3-a456-426614174000",
+    "attributes": {
+      "email": "user@example.com",
+      "confirmed_at": "2026-03-03T10:30:00Z"
+    }
+  },
+  "meta": {
+    "token": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9..."
+  }
+}
+```
+
+### 3. Sign In with Token
+
+Exchange a short-lived sign-in token for a standard authentication token:
+
+```bash
+curl -X GET "http://localhost:4000/api/json/users?action=sign_in_with_token" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "token": "short-lived-token-here"
+  }'
+```
+
+## Using Authentication Tokens
+
+Once you have a token, include it in the `Authorization` header of your requests using the Bearer scheme:
+
+```bash
+curl http://localhost:4000/api/json/users/123e4567-e89b-12d3-a456-426614174000 \
+  -H "Authorization: Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9..."
+```
+
+### Header Format
+
+<ParamField header="Authorization" type="string" required>
+  Bearer token in the format: `Bearer <your-jwt-token>`
+</ParamField>
+
+## Token Structure
+
+JWT tokens issued by Ash Coffee contain:
+
+- **Subject (sub)**: The user ID
+- **Purpose**: The token's intended use (e.g., "user", "password_reset")
+- **JTI**: Unique token identifier
+- **Expiration (exp)**: Token expiration timestamp
+
+<Note>
+  Tokens are signed using the application's signing secret and can be verified to ensure authenticity.
+</Note>
+
+## Token Storage
+
+All tokens are stored in the database for security and management purposes. This enables:
+
+- Token revocation
+- Token expiration tracking
+- Logout from all devices functionality
+
+## Authentication Strategies
+
+Ash Coffee supports multiple authentication strategies:
+
+### Password Authentication
+
+The primary authentication method using email and password. Passwords are hashed using bcrypt for security.
+
+### Remember Me
+
+A "remember me" strategy that allows users to stay logged in for extended periods.
+
+### Magic Link
+
+Email-based authentication that sends a magic link for passwordless sign-in.
+
+## Token Revocation
+
+Tokens can be revoked in several ways:
+
+### Individual Token Revocation
+
+```bash
+curl -X POST http://localhost:4000/api/json/tokens/revoke_token \
+  -H "Content-Type: application/json" \
+  -H "Authorization: Bearer your-token-here" \
+  -d '{
+    "token": "token-to-revoke"
+  }'
+```
+
+### Revoke All Tokens for a User
+
+Changing a user's password automatically revokes all existing tokens, forcing re-authentication on all devices.
+
+## Error Handling
+
+### 401 Unauthorized
+
+Returned when:
+- No token is provided for a protected endpoint
+- The token is invalid or malformed
+- The token has expired
+
+```json
+{
+  "errors": [
+    {
+      "title": "Unauthorized",
+      "detail": "Invalid or expired authentication token",
+      "status": "401"
+    }
+  ]
+}
+```
+
+### 403 Forbidden
+
+Returned when the authenticated user doesn't have permission to access the requested resource.
+
+```json
+{
+  "errors": [
+    {
+      "title": "Forbidden",
+      "detail": "You do not have permission to access this resource",
+      "status": "403"
+    }
+  ]
+}
+```
+
+## Security Best Practices
+
+<Warning>
+  Always use HTTPS in production to protect tokens during transmission.
+</Warning>
+
+- Store tokens securely (e.g., httpOnly cookies, secure storage)
+- Never expose tokens in URLs or logs
+- Implement token refresh mechanisms for long-lived sessions
+- Revoke tokens when users log out
+- Monitor for suspicious token usage patterns
+
+## Next Steps
+
+<CardGroup cols={2}>
+  <Card title="User Endpoints" icon="user" href="/api/endpoints/users">
+    Explore user management endpoints
+  </Card>
+  <Card title="Token Endpoints" icon="key" href="/api/endpoints/tokens">
+    Learn about token management
+  </Card>
+</CardGroup>

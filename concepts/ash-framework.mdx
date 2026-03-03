@@ -1,0 +1,154 @@
+---
+title: 'Ash Framework'
+description: 'Learn what Ash Framework is and why AshCoffee uses it'
+---
+
+## What is Ash Framework?
+
+Ash Framework is a declarative, resource-oriented application framework for Elixir. It provides a powerful abstraction layer for building ambitious applications by focusing on modeling your domain using **resources**, **domains**, and **actions**.
+
+Instead of writing repetitive CRUD operations, business logic scattered across controllers, and complex queries everywhere, Ash lets you declare what your resources are and what they can do. The framework handles the rest.
+
+## Why AshCoffee Uses Ash
+
+AshCoffee is built with Ash Framework to leverage its powerful features:
+
+<CardGroup cols={2}>
+  <Card title="Declarative Design" icon="code">
+    Define resources, actions, and policies in one place instead of spreading logic across multiple layers
+  </Card>
+  <Card title="Built-in Authentication" icon="shield-halved">
+    AshAuthentication extension provides complete auth flows with minimal configuration
+  </Card>
+  <Card title="Automatic API Generation" icon="bolt">
+    Resources automatically expose consistent APIs without manual controller code
+  </Card>
+  <Card title="Policy Authorization" icon="lock">
+    Fine-grained access control with declarative policies that are easy to understand and maintain
+  </Card>
+</CardGroup>
+
+## Core Architecture
+
+Ash applications are organized around three main concepts:
+
+<Steps>
+  <Step title="Resources">
+    Resources are the core building blocks - they represent your data models like `User` and `Token`. Each resource defines its attributes, actions, and behaviors.
+  </Step>
+  
+  <Step title="Domains">
+    Domains group related resources together. In AshCoffee, the `Accounts` domain contains user and authentication-related resources.
+  </Step>
+  
+  <Step title="Actions">
+    Actions define what you can do with resources - create, read, update, delete, and custom operations like `register_with_password` or `sign_in_with_password`.
+  </Step>
+</Steps>
+
+## Example: The User Resource
+
+Here's how AshCoffee defines its `User` resource:
+
+```elixir lib/ash_coffee/accounts/user.ex
+defmodule AshCoffee.Accounts.User do
+  use Ash.Resource,
+    otp_app: :ash_coffee,
+    domain: AshCoffee.Accounts,
+    data_layer: AshPostgres.DataLayer,
+    authorizers: [Ash.Policy.Authorizer],
+    extensions: [AshAuthentication]
+
+  # Authentication configuration
+  authentication do
+    strategies do
+      password :password do
+        identity_field :email
+        hash_provider AshAuthentication.BcryptProvider
+      end
+    end
+  end
+
+  # Attributes
+  attributes do
+    uuid_primary_key :id
+    
+    attribute :email, :ci_string do
+      allow_nil? false
+      public? true
+    end
+    
+    attribute :hashed_password, :string do
+      allow_nil? false
+      sensitive? true
+    end
+  end
+end
+```
+
+With just this declarative code, Ash provides:
+- Database schema and migrations
+- Password hashing and validation
+- Email uniqueness constraints
+- Type casting and validation
+- Query building capabilities
+
+## Key Benefits
+
+<AccordionGroup>
+  <Accordion title="Less Boilerplate">
+    Ash eliminates repetitive code. Compare writing manual Ecto schemas, changesets, context functions, and controllers versus declaring a resource with actions. You can build features 2-3x faster.
+  </Accordion>
+  
+  <Accordion title="Consistent Patterns">
+    Every resource follows the same structure. New developers can quickly understand the codebase because everything is organized consistently.
+  </Accordion>
+  
+  <Accordion title="Type Safety">
+    Ash validates data at every layer - from API inputs to database writes. Type errors are caught early with clear error messages.
+  </Accordion>
+  
+  <Accordion title="Extensibility">
+    Extensions like AshAuthentication, AshGraphql, and AshJsonApi add powerful capabilities without custom code. Plugin new features in minutes.
+  </Accordion>
+</AccordionGroup>
+
+## Integration with Phoenix
+
+Ash works seamlessly with Phoenix. In AshCoffee, Ash handles the domain layer while Phoenix manages the web layer:
+
+```elixir lib/ash_coffee/application.ex
+def start(_type, _args) do
+  children = [
+    AshCoffeeWeb.Telemetry,
+    AshCoffee.Repo,
+    {Phoenix.PubSub, name: AshCoffee.PubSub},
+    AshCoffeeWeb.Endpoint,
+    {AshAuthentication.Supervisor, [otp_app: :ash_coffee]}
+  ]
+  
+  opts = [strategy: :one_for_one, name: AshCoffee.Supervisor]
+  Supervisor.start_link(children, opts)
+end
+```
+
+<Note>
+  The `AshAuthentication.Supervisor` runs alongside Phoenix components, handling token cleanup and authentication tasks automatically.
+</Note>
+
+## Next Steps
+
+<CardGroup cols={2}>
+  <Card title="Domains" icon="layer-group" href="/concepts/domains">
+    Learn how domains organize resources in AshCoffee
+  </Card>
+  <Card title="Resources" icon="cube" href="/concepts/resources">
+    Explore User and Token resources in detail
+  </Card>
+  <Card title="Actions" icon="bolt" href="/concepts/actions">
+    Understand how actions power authentication flows
+  </Card>
+  <Card title="Ash Documentation" icon="book" href="https://hexdocs.pm/ash">
+    Read the official Ash Framework documentation
+  </Card>
+</CardGroup>

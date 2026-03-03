@@ -1,0 +1,637 @@
+---
+title: Deployment
+description: Deploy your Ash Coffee application to production with proper configuration and asset compilation
+---
+
+This guide covers deploying your Ash Coffee application to production.
+
+## Pre-Deployment Checklist
+
+<Steps>
+  <Step title="Review configuration">
+    Ensure all required environment variables are set:
+    - `DATABASE_URL`
+    - `SECRET_KEY_BASE`
+    - `TOKEN_SIGNING_SECRET`
+    - `PHX_HOST`
+  </Step>
+  
+  <Step title="Run pre-commit checks">
+    ```bash
+    mix precommit
+    ```
+    
+    This runs:
+    - Compile with warnings as errors
+    - Remove unused dependencies
+    - Format code
+    - Run tests
+  </Step>
+  
+  <Step title="Set production config">
+    Review `config/prod.exs` and `config/runtime.exs` for production settings.
+  </Step>
+  
+  <Step title="Prepare assets">
+    Build and optimize assets for production:
+    
+    ```bash
+    mix assets.deploy
+    ```
+  </Step>
+</Steps>
+
+## Environment Variables
+
+Create a `.env.production` file with all required variables:
+
+```bash .env.production
+# Database
+DATABASE_URL=ecto://user:password@db.example.com:5432/ash_coffee_prod
+POOL_SIZE=10
+
+# Application
+SECRET_KEY_BASE=your_secret_key_base_here
+TOKEN_SIGNING_SECRET=your_token_signing_secret_here
+PHX_HOST=example.com
+PORT=4000
+
+# Server
+PHX_SERVER=true
+
+# Optional
+ECTO_IPV6=false
+DNS_CLUSTER_QUERY=
+
+# Mailer (choose one adapter)
+MAILGUN_API_KEY=your_mailgun_key
+MAILGUN_DOMAIN=mg.example.com
+# or
+SENDGRID_API_KEY=your_sendgrid_key
+# or
+SMTP_RELAY=smtp.example.com
+SMTP_USERNAME=your_username
+SMTP_PASSWORD=your_password
+```
+
+<Warning>
+Never commit `.env.production` to version control. Add it to `.gitignore`.
+</Warning>
+
+## Asset Compilation
+
+The `mix assets.deploy` alias handles all asset compilation and optimization:
+
+```elixir mix.exs
+aliases do
+  [
+    "assets.deploy": [
+      "tailwind ash_coffee --minify",
+      "esbuild ash_coffee --minify",
+      "phx.digest"
+    ]
+  ]
+end
+```
+
+This command:
+1. Compiles and minifies Tailwind CSS
+2. Bundles and minifies JavaScript with esbuild
+3. Generates digested static assets with cache busting
+
+### Manual Asset Steps
+
+If you need to run steps individually:
+
+<CodeGroup>
+```bash Tailwind CSS
+mix tailwind ash_coffee --minify
+```
+
+```bash JavaScript
+mix esbuild ash_coffee --minify
+```
+
+```bash Digest Assets
+mix phx.digest
+```
+</CodeGroup>
+
+## Building a Release
+
+Ash Coffee can be deployed as a Mix release for better performance and smaller deployments.
+
+<Steps>
+  <Step title="Set MIX_ENV to production">
+    ```bash
+    export MIX_ENV=prod
+    ```
+  </Step>
+  
+  <Step title="Install dependencies">
+    ```bash
+    mix deps.get --only prod
+    ```
+  </Step>
+  
+  <Step title="Compile the application">
+    ```bash
+    mix compile
+    ```
+  </Step>
+  
+  <Step title="Compile assets">
+    ```bash
+    mix assets.deploy
+    ```
+  </Step>
+  
+  <Step title="Build the release">
+    ```bash
+    mix release
+    ```
+    
+    The release will be created in `_build/prod/rel/ash_coffee/`.
+  </Step>
+</Steps>
+
+### Running the Release
+
+```bash
+# Set environment variables
+export DATABASE_URL="ecto://user:pass@host/db"
+export SECRET_KEY_BASE="..."
+export TOKEN_SIGNING_SECRET="..."
+export PHX_HOST="example.com"
+export PHX_SERVER=true
+
+# Start the server
+_build/prod/rel/ash_coffee/bin/ash_coffee start
+```
+
+<Note>
+The `PHX_SERVER=true` environment variable is required to start the web server in a release.
+</Note>
+
+## Database Migrations
+
+Run migrations before starting the application:
+
+```bash
+mix ecto.migrate
+```
+
+For releases, you can run migrations in the application startup:
+
+```elixir lib/ash_coffee/application.ex
+defmodule AshCoffee.Application do
+  def start(_type, _args) do
+    # Run migrations on startup
+    AshCoffee.Release.migrate()
+    
+    children = [
+      # ...
+    ]
+    
+    Supervisor.start_link(children, strategy: :one_for_one, name: AshCoffee.Supervisor)
+  end
+end
+```
+
+Create a release module:
+
+```elixir lib/ash_coffee/release.ex
+defmodule AshCoffee.Release do
+  @moduledoc """
+  Tasks for running in releases.
+  """
+  @app :ash_coffee
+
+  def migrate do
+    load_app()
+
+    for repo <- repos() do
+      {:ok, _, _} = Ecto.Migrator.with_repo(repo, &Ecto.Migrator.run(&1, :up, all: true))
+    end
+  end
+
+  def rollback(repo, version) do
+    load_app()
+    {:ok, _, _} = Ecto.Migrator.with_repo(repo, &Ecto.Migrator.run(&1, :down, to: version))
+  end
+
+  defp repos do
+    Application.fetch_env!(@app, :ecto_repos)
+  end
+
+  defp load_app do
+    Application.load(@app)
+  end
+end
+```
+
+## Deployment Platforms
+
+### Fly.io
+
+<Steps>
+  <Step title="Install flyctl">
+    ```bash
+    curl -L https://fly.io/install.sh | sh
+    ```
+  </Step>
+  
+  <Step title="Sign in to Fly.io">
+    ```bash
+    fly auth login
+    ```
+  </Step>
+  
+  <Step title="Launch the app">
+    ```bash
+    fly launch
+    ```
+    
+    Follow the prompts to configure your app.
+  </Step>
+  
+  <Step title="Set secrets">
+    ```bash
+    fly secrets set SECRET_KEY_BASE=$(mix phx.gen.secret)
+    fly secrets set TOKEN_SIGNING_SECRET=$(mix phx.gen.secret)
+    ```
+  </Step>
+  
+  <Step title="Create a PostgreSQL database">
+    ```bash
+    fly postgres create
+    fly postgres attach --app ash-coffee <postgres-app-name>
+    ```
+  </Step>
+  
+  <Step title="Deploy">
+    ```bash
+    fly deploy
+    ```
+  </Step>
+</Steps>
+
+### Render
+
+<Steps>
+  <Step title="Create a new Web Service">
+    Connect your GitHub repository to Render.
+  </Step>
+  
+  <Step title="Configure build settings">
+    **Build Command:**
+    ```bash
+    mix deps.get && mix assets.deploy && mix compile
+    ```
+    
+    **Start Command:**
+    ```bash
+    mix phx.server
+    ```
+  </Step>
+  
+  <Step title="Add environment variables">
+    In the Render dashboard, add:
+    - `DATABASE_URL` (from PostgreSQL service)
+    - `SECRET_KEY_BASE`
+    - `TOKEN_SIGNING_SECRET`
+    - `PHX_HOST`
+    - `PHX_SERVER=true`
+    - `MIX_ENV=prod`
+  </Step>
+  
+  <Step title="Create PostgreSQL database">
+    Create a PostgreSQL database service in Render and link it to your web service.
+  </Step>
+  
+  <Step title="Deploy">
+    Render will automatically deploy on git push.
+  </Step>
+</Steps>
+
+### Gigalixir
+
+<Steps>
+  <Step title="Install Gigalixir CLI">
+    ```bash
+    pip install gigalixir
+    ```
+  </Step>
+  
+  <Step title="Sign up and login">
+    ```bash
+    gigalixir signup
+    gigalixir login
+    ```
+  </Step>
+  
+  <Step title="Create the app">
+    ```bash
+    gigalixir create ash-coffee
+    ```
+  </Step>
+  
+  <Step title="Create a database">
+    ```bash
+    gigalixir pg:create --free
+    ```
+  </Step>
+  
+  <Step title="Set environment variables">
+    ```bash
+    gigalixir config:set SECRET_KEY_BASE="$(mix phx.gen.secret)"
+    gigalixir config:set TOKEN_SIGNING_SECRET="$(mix phx.gen.secret)"
+    gigalixir config:set PHX_HOST="ash-coffee.gigalixirapp.com"
+    ```
+  </Step>
+  
+  <Step title="Deploy">
+    ```bash
+    git push gigalixir main
+    ```
+  </Step>
+  
+  <Step title="Run migrations">
+    ```bash
+    gigalixir run mix ecto.migrate
+    ```
+  </Step>
+</Steps>
+
+### Docker
+
+<CodeGroup>
+```dockerfile Dockerfile
+FROM elixir:1.15-alpine AS build
+
+# Install build dependencies
+RUN apk add --no-cache build-base git nodejs npm
+
+WORKDIR /app
+
+# Install hex and rebar
+RUN mix local.hex --force && \
+    mix local.rebar --force
+
+# Set build ENV
+ENV MIX_ENV=prod
+
+# Install mix dependencies
+COPY mix.exs mix.lock ./
+RUN mix deps.get --only prod
+RUN mix deps.compile
+
+# Copy assets
+COPY assets assets
+COPY priv priv
+
+# Compile assets
+RUN mix assets.deploy
+
+# Copy source
+COPY config config
+COPY lib lib
+
+# Compile the release
+RUN mix compile
+RUN mix release
+
+# Start a new build stage
+FROM alpine:3.18 AS app
+
+RUN apk add --no-cache libstdc++ openssl ncurses-libs
+
+WORKDIR /app
+
+RUN chown nobody:nobody /app
+
+USER nobody:nobody
+
+COPY --from=build --chown=nobody:nobody /app/_build/prod/rel/ash_coffee ./
+
+ENV HOME=/app
+
+CMD ["bin/ash_coffee", "start"]
+```
+
+```yaml docker-compose.yml
+version: '3.8'
+
+services:
+  db:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+      POSTGRES_DB: ash_coffee_prod
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    ports:
+      - "5432:5432"
+
+  app:
+    build: .
+    environment:
+      DATABASE_URL: ecto://postgres:postgres@db:5432/ash_coffee_prod
+      SECRET_KEY_BASE: ${SECRET_KEY_BASE}
+      TOKEN_SIGNING_SECRET: ${TOKEN_SIGNING_SECRET}
+      PHX_HOST: localhost
+      PHX_SERVER: "true"
+      PORT: 4000
+    ports:
+      - "4000:4000"
+    depends_on:
+      - db
+
+volumes:
+  postgres_data:
+```
+
+```bash Build and run
+# Build the image
+docker build -t ash-coffee .
+
+# Run with docker-compose
+docker-compose up -d
+
+# Run migrations
+docker-compose exec app bin/ash_coffee eval "AshCoffee.Release.migrate()"
+```
+</CodeGroup>
+
+## Health Checks
+
+Implement a health check endpoint for monitoring:
+
+```elixir lib/ash_coffee_web/controllers/health_controller.ex
+defmodule AshCoffeeWeb.HealthController do
+  use AshCoffeeWeb, :controller
+
+  def show(conn, _params) do
+    # Check database connection
+    case Ecto.Adapters.SQL.query(AshCoffee.Repo, "SELECT 1") do
+      {:ok, _} ->
+        json(conn, %{status: "healthy"})
+      {:error, _} ->
+        conn
+        |> put_status(:service_unavailable)
+        |> json(%{status: "unhealthy"})
+    end
+  end
+end
+```
+
+Add the route:
+
+```elixir lib/ash_coffee_web/router.ex
+scope "/" do
+  pipe_through :api
+  get "/health", AshCoffeeWeb.HealthController, :show
+end
+```
+
+## SSL/TLS Configuration
+
+### Force SSL
+
+SSL is enforced by default in production:
+
+```elixir config/prod.exs
+config :ash_coffee, AshCoffeeWeb.Endpoint,
+  force_ssl: [rewrite_on: [:x_forwarded_proto]],
+  exclude: [
+    hosts: ["localhost", "127.0.0.1"]
+  ]
+```
+
+### Custom Certificates
+
+For custom SSL certificates:
+
+```elixir config/runtime.exs
+config :ash_coffee, AshCoffeeWeb.Endpoint,
+  https: [
+    port: 443,
+    cipher_suite: :strong,
+    keyfile: System.get_env("SSL_KEY_PATH"),
+    certfile: System.get_env("SSL_CERT_PATH")
+  ]
+```
+
+## Performance Optimization
+
+### Database Connection Pooling
+
+Adjust pool size based on your load:
+
+```bash
+POOL_SIZE=20  # For production with high traffic
+```
+
+### Asset Compression
+
+Gzip is handled by the CDN or reverse proxy. For nginx:
+
+```nginx
+gzip on;
+gzip_vary on;
+gzip_types text/plain text/css application/json application/javascript text/xml application/xml;
+```
+
+### Caching
+
+Static assets are automatically cached with digest filenames:
+
+```elixir config/prod.exs
+config :ash_coffee, AshCoffeeWeb.Endpoint,
+  cache_static_manifest: "priv/static/cache_manifest.json"
+```
+
+## Monitoring & Logging
+
+### Application Logs
+
+Configure log level in production:
+
+```elixir config/prod.exs
+config :logger, level: :info
+```
+
+### Phoenix LiveDashboard
+
+<Warning>
+Restrict LiveDashboard access in production using authentication.
+</Warning>
+
+Protect the dashboard route:
+
+```elixir lib/ash_coffee_web/router.ex
+import AshCoffeeWeb.UserAuth
+
+scope "/" do
+  pipe_through [:browser, :require_authenticated_admin]
+  
+  live_dashboard "/dashboard", metrics: AshCoffeeWeb.Telemetry
+end
+```
+
+## Troubleshooting
+
+### Application Won't Start
+
+1. Check environment variables are set:
+   ```bash
+   printenv | grep -E '(DATABASE_URL|SECRET_KEY_BASE|TOKEN_SIGNING_SECRET)'
+   ```
+
+2. Verify database connectivity:
+   ```bash
+   psql $DATABASE_URL
+   ```
+
+3. Check logs for errors:
+   ```bash
+   # For releases
+   tail -f _build/prod/rel/ash_coffee/log/erlang.log.1
+   
+   # For Docker
+   docker-compose logs -f app
+   ```
+
+### Assets Not Loading
+
+1. Ensure `mix assets.deploy` was run
+2. Check `priv/static/cache_manifest.json` exists
+3. Verify static file serving is enabled
+
+### Database Connection Issues
+
+1. Verify `DATABASE_URL` format:
+   ```
+   ecto://username:password@host:port/database
+   ```
+
+2. Check SSL requirements:
+   ```elixir
+   config :ash_coffee, AshCoffee.Repo,
+     ssl: true,
+     ssl_opts: [verify: :verify_none]
+   ```
+
+3. Test connection pool size - increase if seeing timeout errors
+
+## Next Steps
+
+<CardGroup cols={2}>
+  <Card title="Configuration" icon="gear" href="/guides/configuration">
+    Review configuration options
+  </Card>
+  <Card title="Database Setup" icon="database" href="/guides/database-setup">
+    Set up and manage your database
+  </Card>
+</CardGroup>

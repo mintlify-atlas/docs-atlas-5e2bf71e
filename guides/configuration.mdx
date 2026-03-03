@@ -1,0 +1,308 @@
+---
+title: Configuration
+description: Configure your Ash Coffee application with environment variables, secrets, and mailer setup
+---
+
+This guide covers the configuration of your Ash Coffee application across different environments.
+
+## Environment Variables
+
+Ash Coffee uses different configuration files for each environment:
+
+- `config/config.exs` - Base configuration shared across all environments
+- `config/dev.exs` - Development environment settings
+- `config/prod.exs` - Production environment settings
+- `config/runtime.exs` - Runtime configuration loaded from environment variables
+
+### Required Environment Variables
+
+<Note>
+These environment variables are **required** for production deployments.
+</Note>
+
+| Variable | Description | Example |
+|----------|-------------|----------|
+| `DATABASE_URL` | PostgreSQL connection string | `ecto://USER:PASS@HOST/DATABASE` |
+| `SECRET_KEY_BASE` | Secret key for signing/encrypting cookies | Generate with `mix phx.gen.secret` |
+| `TOKEN_SIGNING_SECRET` | Secret for signing authentication tokens | Generate with `mix phx.gen.secret` |
+| `PHX_HOST` | Production host domain | `example.com` |
+
+### Optional Environment Variables
+
+| Variable | Description | Default |
+|----------|-------------|----------|
+| `PORT` | HTTP server port | `4000` |
+| `PHX_SERVER` | Enable server on startup | `false` |
+| `POOL_SIZE` | Database connection pool size | `10` |
+| `ECTO_IPV6` | Enable IPv6 for database connection | `false` |
+| `DNS_CLUSTER_QUERY` | DNS cluster query for distributed systems | - |
+
+## Generating Secrets
+
+<Steps>
+  <Step title="Generate SECRET_KEY_BASE">
+    Run the following command to generate a secure secret key:
+    
+    ```bash
+    mix phx.gen.secret
+    ```
+    
+    Copy the output and set it as your `SECRET_KEY_BASE` environment variable.
+  </Step>
+  
+  <Step title="Generate TOKEN_SIGNING_SECRET">
+    Generate another secret for token signing:
+    
+    ```bash
+    mix phx.gen.secret
+    ```
+    
+    Set this as your `TOKEN_SIGNING_SECRET` environment variable.
+  </Step>
+</Steps>
+
+## Application Configuration
+
+### Ash Framework Settings
+
+The application is configured with the following Ash settings in `config/config.exs`:
+
+```elixir config/config.exs
+config :ash,
+  allow_forbidden_field_for_relationships_by_default?: true,
+  include_embedded_source_by_default?: false,
+  show_keysets_for_all_actions?: false,
+  default_page_type: :keyset,
+  policies: [no_filter_static_forbidden_reads?: false],
+  keep_read_action_loads_when_loading?: false,
+  default_actions_require_atomic?: true,
+  read_action_after_action_hooks_in_order?: true,
+  bulk_actions_default_to_errors?: true,
+  transaction_rollback_on_error?: true,
+  known_types: [AshPostgres.Timestamptz, AshPostgres.TimestamptzUsec]
+```
+
+### Ash JSON API Configuration
+
+```elixir config/config.exs
+config :ash_json_api,
+  show_public_calculations_when_loaded?: false,
+  authorize_update_destroy_with_error?: true
+
+config :mime,
+  extensions: %{"json" => "application/vnd.api+json"},
+  types: %{"application/vnd.api+json" => ["json"]}
+```
+
+## Database Configuration
+
+### Development
+
+<CodeGroup>
+```elixir config/dev.exs
+config :ash_coffee, AshCoffee.Repo,
+  username: "martha_pop",
+  password: "postgres_pop",
+  hostname: "localhost",
+  database: "ash_coffee_dev",
+  stacktrace: true,
+  show_sensitive_data_on_connection_error: true,
+  pool_size: 10
+```
+
+```bash .env.dev
+DATABASE_USERNAME=martha_pop
+DATABASE_PASSWORD=postgres_pop
+DATABASE_HOST=localhost
+DATABASE_NAME=ash_coffee_dev
+```
+</CodeGroup>
+
+### Production
+
+<CodeGroup>
+```elixir config/runtime.exs
+database_url =
+  System.get_env("DATABASE_URL") ||
+    raise """
+    environment variable DATABASE_URL is missing.
+    For example: ecto://USER:PASS@HOST/DATABASE
+    """
+
+maybe_ipv6 = if System.get_env("ECTO_IPV6") in ~w(true 1), do: [:inet6], else: []
+
+config :ash_coffee, AshCoffee.Repo,
+  url: database_url,
+  pool_size: String.to_integer(System.get_env("POOL_SIZE") || "10"),
+  socket_options: maybe_ipv6
+```
+
+```bash .env.production
+DATABASE_URL=ecto://user:password@db.example.com/ash_coffee_prod
+POOL_SIZE=10
+ECTO_IPV6=false
+```
+</CodeGroup>
+
+## Endpoint Configuration
+
+### Development Server
+
+```elixir config/dev.exs
+config :ash_coffee, AshCoffeeWeb.Endpoint,
+  http: [ip: {127, 0, 0, 1}],
+  check_origin: false,
+  code_reloader: true,
+  debug_errors: true,
+  secret_key_base: "...",
+  watchers: [
+    esbuild: {Esbuild, :install_and_run, [:ash_coffee, ~w(--sourcemap=inline --watch)]},
+    tailwind: {Tailwind, :install_and_run, [:ash_coffee, ~w(--watch)]}
+  ]
+```
+
+### Production Server
+
+```elixir config/runtime.exs
+config :ash_coffee, AshCoffeeWeb.Endpoint,
+  url: [host: host, port: 443, scheme: "https"],
+  http: [
+    ip: {0, 0, 0, 0, 0, 0, 0, 0},
+    port: String.to_integer(System.get_env("PORT", "4000"))
+  ],
+  secret_key_base: secret_key_base
+```
+
+<Warning>
+The production configuration binds to `{0, 0, 0, 0, 0, 0, 0, 0}` (all IPv6 interfaces). Set it to `{0, 0, 0, 0, 0, 0, 0, 1}` for local network only access.
+</Warning>
+
+## Mailer Configuration
+
+### Development
+
+By default, the development environment uses the local adapter which stores emails in memory:
+
+```elixir config/config.exs
+config :ash_coffee, AshCoffee.Mailer, adapter: Swoosh.Adapters.Local
+```
+
+You can view development emails at `/dev/mailbox` in your browser.
+
+### Production
+
+For production, configure a real email adapter such as Mailgun, SendGrid, or SMTP:
+
+<CodeGroup>
+```elixir Mailgun
+config :ash_coffee, AshCoffee.Mailer,
+  adapter: Swoosh.Adapters.Mailgun,
+  api_key: System.get_env("MAILGUN_API_KEY"),
+  domain: System.get_env("MAILGUN_DOMAIN")
+```
+
+```elixir SendGrid
+config :ash_coffee, AshCoffee.Mailer,
+  adapter: Swoosh.Adapters.Sendgrid,
+  api_key: System.get_env("SENDGRID_API_KEY")
+```
+
+```elixir SMTP
+config :ash_coffee, AshCoffee.Mailer,
+  adapter: Swoosh.Adapters.SMTP,
+  relay: System.get_env("SMTP_RELAY"),
+  username: System.get_env("SMTP_USERNAME"),
+  password: System.get_env("SMTP_PASSWORD"),
+  port: 587,
+  tls: :always
+```
+</CodeGroup>
+
+<Note>
+Make sure to configure the API client in `config/prod.exs`:
+
+```elixir
+config :swoosh, api_client: Swoosh.ApiClient.Req
+```
+</Note>
+
+## SSL Configuration
+
+### Force SSL in Production
+
+The application is configured to force SSL in production:
+
+```elixir config/prod.exs
+config :ash_coffee, AshCoffeeWeb.Endpoint,
+  force_ssl: [rewrite_on: [:x_forwarded_proto]],
+  exclude: [
+    hosts: ["localhost", "127.0.0.1"]
+  ]
+```
+
+### Custom SSL Certificates
+
+For custom SSL certificates, add the `https` key to your endpoint configuration:
+
+```elixir config/runtime.exs
+config :ash_coffee, AshCoffeeWeb.Endpoint,
+  https: [
+    port: 443,
+    cipher_suite: :strong,
+    keyfile: System.get_env("SSL_KEY_PATH"),
+    certfile: System.get_env("SSL_CERT_PATH")
+  ]
+```
+
+## Asset Configuration
+
+### esbuild
+
+```elixir config/config.exs
+config :esbuild,
+  version: "0.25.4",
+  ash_coffee: [
+    args: ~w(js/app.js --bundle --target=es2022 --outdir=../priv/static/assets/js --external:/fonts/* --external:/images/* --alias:@=.),
+    cd: Path.expand("../assets", __DIR__),
+    env: %{"NODE_PATH" => [Path.expand("../deps", __DIR__), Mix.Project.build_path()]}
+  ]
+```
+
+### Tailwind CSS
+
+```elixir config/config.exs
+config :tailwind,
+  version: "4.1.12",
+  ash_coffee: [
+    args: ~w(
+      --input=assets/css/app.css
+      --output=priv/static/assets/css/app.css
+    ),
+    cd: Path.expand("..", __DIR__)
+  ]
+```
+
+## Logging Configuration
+
+### Development
+
+```elixir config/dev.exs
+config :logger, :default_formatter, format: "[$level] $message\n"
+```
+
+### Production
+
+```elixir config/prod.exs
+config :logger, level: :info
+```
+
+## Next Steps
+
+<CardGroup cols={2}>
+  <Card title="Database Setup" icon="database" href="/guides/database-setup">
+    Set up PostgreSQL and run migrations
+  </Card>
+  <Card title="Deployment" icon="rocket" href="/guides/deployment">
+    Deploy your application to production
+  </Card>
+</CardGroup>

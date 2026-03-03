@@ -1,0 +1,147 @@
+---
+title: Introduction to Ash Coffee
+description: A modern Phoenix web application built with the Ash Framework, featuring authentication, authorization, and JSON API services
+---
+
+# Welcome to Ash Coffee
+
+Ash Coffee is a production-ready Phoenix web application built with the powerful [Ash Framework](https://ash-hq.org/). It provides a complete foundation for building secure, scalable web applications with built-in user authentication, policy-based authorization, and a JSON API.
+
+## What is Ash Coffee?
+
+Ash Coffee demonstrates best practices for building Phoenix applications using Ash Framework's declarative resource definitions, eliminating boilerplate while maintaining flexibility and type safety. Built on Phoenix 1.8+ with LiveView, it offers a modern development experience with real-time features and excellent developer ergonomics.
+
+## Key Features
+
+<CardGroup cols={2}>
+  <Card title="User Authentication" icon="lock">
+    Complete authentication system with email/password, password reset, email confirmation, remember me, and magic link support via AshAuthentication
+  </Card>
+  
+  <Card title="JSON API" icon="code">
+    RESTful JSON API with OpenAPI/Swagger documentation powered by AshJsonApi and OpenApiSpex
+  </Card>
+  
+  <Card title="Policy-Based Authorization" icon="shield">
+    Fine-grained access control using Ash's declarative policy system with actor-based permissions
+  </Card>
+  
+  <Card title="PostgreSQL Database" icon="database">
+    Production-ready database layer with AshPostgres, including migrations and connection pooling
+  </Card>
+  
+  <Card title="Phoenix LiveView" icon="bolt">
+    Rich, real-time user experiences with server-rendered HTML and WebSocket connectivity
+  </Card>
+  
+  <Card title="Modern Tooling" icon="wrench">
+    TailwindCSS for styling, esbuild for JavaScript, and comprehensive testing setup included
+  </Card>
+</CardGroup>
+
+## Architecture Overview
+
+Ash Coffee follows a domain-driven design pattern powered by the Ash Framework:
+
+- **Domains**: Logical groupings of resources (e.g., `AshCoffee.Accounts`)
+- **Resources**: Declarative definitions of data models with actions, policies, and validations
+- **Actions**: Type-safe operations (read, create, update, destroy) with built-in changesets
+- **Policies**: Authorization rules that run automatically on every action
+
+### Core Components
+
+**Authentication System**
+- User registration with email confirmation
+- Password authentication with secure bcrypt hashing
+- Password reset via email tokens
+- Remember me functionality for persistent sessions
+- Magic link authentication support
+- JWT token management for API access
+
+**API Layer**
+- JSON API compliant endpoints at `/api/json`
+- Interactive Swagger UI at `/api/json/swaggerui`
+- Automatic OpenAPI specification generation
+- Bearer token authentication for API requests
+
+**Development Tools**
+- Phoenix LiveDashboard for monitoring at `/dev/dashboard`
+- Email preview with Swoosh at `/dev/mailbox`
+- Hot code reloading for rapid development
+- Comprehensive test suite with ExUnit
+
+## Technology Stack
+
+<AccordionGroup>
+  <Accordion title="Core Framework">
+    - **Phoenix 1.8.4**: Modern web framework for Elixir
+    - **Ash 3.0**: Declarative resource framework
+    - **Phoenix LiveView 1.1.0**: Real-time server-rendered UI
+    - **Elixir 1.15+**: Functional, concurrent programming language
+  </Accordion>
+  
+  <Accordion title="Data & Database">
+    - **AshPostgres 2.0**: PostgreSQL integration for Ash
+    - **Ecto 3.13**: Database wrapper and query generator
+    - **Postgrex**: PostgreSQL driver for Elixir
+  </Accordion>
+  
+  <Accordion title="Authentication & Authorization">
+    - **AshAuthentication 4.0**: Authentication framework
+    - **AshAuthenticationPhoenix 2.0**: Phoenix integration
+    - **Bcrypt Elixir 3.0**: Secure password hashing
+  </Accordion>
+  
+  <Accordion title="API & Documentation">
+    - **AshJsonApi 1.0**: JSON API implementation
+    - **OpenApiSpex 3.0**: OpenAPI specification generation
+  </Accordion>
+  
+  <Accordion title="Frontend & Assets">
+    - **TailwindCSS 0.3**: Utility-first CSS framework
+    - **esbuild 0.10**: JavaScript bundler
+    - **Heroicons 2.2.0**: Beautiful SVG icons
+  </Accordion>
+</AccordionGroup>
+
+## Use Cases
+
+Ash Coffee is perfect for:
+
+- **SaaS Applications**: Multi-tenant platforms with user authentication
+- **API-First Projects**: Applications that need both web UI and programmatic access
+- **Internal Tools**: Admin dashboards and business applications
+- **Learning Ash Framework**: Reference implementation of Ash best practices
+
+## Next Steps
+
+Ready to get started? Choose your path:
+
+<CardGroup cols={3}>
+  <Card title="Quick Start" icon="rocket" href="/quickstart">
+    Get up and running in 5 minutes with a working authentication system
+  </Card>
+  
+  <Card title="Installation" icon="download" href="/installation">
+    Complete installation guide with all dependencies and configuration
+  </Card>
+  
+  <Card title="API Reference" icon="book" href="/api/overview">
+    Explore the API endpoints and authentication patterns
+  </Card>
+</CardGroup>
+
+<Note>
+  Ash Coffee is built with production-ready patterns and can be used as a starting point for your own Phoenix + Ash applications.
+</Note>
+
+## Community & Support
+
+For help with Ash Framework:
+- [Ash Framework Documentation](https://hexdocs.pm/ash)
+- [Ash Forum](https://elixirforum.com/c/ash-framework)
+- [Phoenix Guides](https://hexdocs.pm/phoenix)
+
+<Warning>
+  This is a reference application. Before deploying to production, ensure you've reviewed security settings, configured proper environment variables, and updated the default signing secrets.
+</Warning>

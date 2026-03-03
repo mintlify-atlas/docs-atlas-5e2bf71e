@@ -1,0 +1,574 @@
+---
+title: 'Token Endpoints'
+description: 'API endpoints for managing authentication tokens'
+icon: 'key'
+---
+
+The Token endpoints provide functionality for managing, revoking, and querying authentication tokens.
+
+## List Tokens
+
+Retrieve a list of active tokens.
+
+### Endpoint
+
+```
+GET /api/json/tokens
+```
+
+### Authentication
+
+Bearer token required.
+
+### Example Request
+
+<CodeGroup>
+```bash cURL
+curl http://localhost:4000/api/json/tokens \
+  -H "Authorization: Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9..."
+```
+
+```javascript JavaScript
+const response = await fetch('http://localhost:4000/api/json/tokens', {
+  headers: {
+    'Authorization': 'Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...'
+  }
+});
+
+const data = await response.json();
+```
+
+```python Python
+import requests
+
+response = requests.get(
+    'http://localhost:4000/api/json/tokens',
+    headers={
+        'Authorization': 'Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...'
+    }
+)
+
+data = response.json()
+```
+</CodeGroup>
+
+### Response
+
+<ResponseField name="data" type="array">
+  Array of token objects
+</ResponseField>
+
+<ResponseField name="data[].type" type="string">
+  Resource type: `"token"`
+</ResponseField>
+
+<ResponseField name="data[].id" type="string">
+  Token JTI (unique identifier)
+</ResponseField>
+
+<ResponseField name="data[].attributes.subject" type="string">
+  User ID associated with the token
+</ResponseField>
+
+<ResponseField name="data[].attributes.purpose" type="string">
+  Token purpose (e.g., "user", "password_reset")
+</ResponseField>
+
+<ResponseField name="data[].attributes.expires_at" type="string">
+  ISO 8601 timestamp when the token expires
+</ResponseField>
+
+```json
+{
+  "data": [
+    {
+      "type": "token",
+      "id": "abc123-jti-identifier",
+      "attributes": {
+        "subject": "123e4567-e89b-12d3-a456-426614174000",
+        "purpose": "user",
+        "expires_at": "2026-04-03T10:30:00Z",
+        "extra_data": null,
+        "created_at": "2026-03-03T10:30:00Z",
+        "updated_at": "2026-03-03T10:30:00Z"
+      }
+    }
+  ]
+}
+```
+
+---
+
+## Get Token
+
+Retrieve a specific token by JTI or token string.
+
+### Endpoint
+
+```
+GET /api/json/tokens?action=get_token
+```
+
+### Authentication
+
+Bearer token required.
+
+### Query Parameters
+
+<ParamField query="jti" type="string">
+  Token JTI (unique identifier). Either `jti` or `token` is required.
+</ParamField>
+
+<ParamField query="token" type="string">
+  Full token string. Either `jti` or `token` is required.
+</ParamField>
+
+<ParamField query="purpose" type="string">
+  Optional: Filter by token purpose
+</ParamField>
+
+### Example Request
+
+<CodeGroup>
+```bash By JTI
+curl "http://localhost:4000/api/json/tokens?action=get_token&jti=abc123-jti-identifier" \
+  -H "Authorization: Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9..."
+```
+
+```bash By Token
+curl "http://localhost:4000/api/json/tokens?action=get_token&token=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9..." \
+  -H "Authorization: Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9..."
+```
+</CodeGroup>
+
+### Response
+
+```json
+{
+  "data": {
+    "type": "token",
+    "id": "abc123-jti-identifier",
+    "attributes": {
+      "subject": "123e4567-e89b-12d3-a456-426614174000",
+      "purpose": "user",
+      "expires_at": "2026-04-03T10:30:00Z",
+      "extra_data": null,
+      "created_at": "2026-03-03T10:30:00Z",
+      "updated_at": "2026-03-03T10:30:00Z"
+    }
+  }
+}
+```
+
+---
+
+## List Expired Tokens
+
+Retrieve all expired tokens.
+
+### Endpoint
+
+```
+GET /api/json/tokens?action=expired
+```
+
+### Authentication
+
+Bearer token required.
+
+### Example Request
+
+```bash
+curl "http://localhost:4000/api/json/tokens?action=expired" \
+  -H "Authorization: Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9..."
+```
+
+### Response
+
+Returns an array of expired token objects with the same structure as the List Tokens endpoint.
+
+---
+
+## Check if Token is Revoked
+
+Check whether a specific token has been revoked.
+
+### Endpoint
+
+```
+POST /api/json/tokens/revoked
+```
+
+### Authentication
+
+Bearer token required.
+
+### Request Body
+
+<ParamField body="jti" type="string">
+  Token JTI. Either `jti` or `token` is required.
+</ParamField>
+
+<ParamField body="token" type="string">
+  Full token string. Either `jti` or `token` is required.
+</ParamField>
+
+### Example Request
+
+<CodeGroup>
+```bash cURL
+curl -X POST http://localhost:4000/api/json/tokens/revoked \
+  -H "Authorization: Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9..." \
+  -H "Content-Type: application/json" \
+  -d '{
+    "jti": "abc123-jti-identifier"
+  }'
+```
+
+```javascript JavaScript
+const response = await fetch('http://localhost:4000/api/json/tokens/revoked', {
+  method: 'POST',
+  headers: {
+    'Authorization': 'Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...',
+    'Content-Type': 'application/json'
+  },
+  body: JSON.stringify({
+    jti: 'abc123-jti-identifier'
+  })
+});
+
+const data = await response.json();
+```
+</CodeGroup>
+
+### Response
+
+Returns a boolean indicating whether the token is revoked.
+
+```json
+{
+  "data": true
+}
+```
+
+---
+
+## Revoke Token
+
+Revoke a specific token, making it invalid for future use.
+
+### Endpoint
+
+```
+POST /api/json/tokens/revoke_token
+```
+
+### Authentication
+
+Bearer token required.
+
+### Request Body
+
+<ParamField body="token" type="string" required>
+  The token to revoke
+</ParamField>
+
+<ParamField body="extra_data" type="object">
+  Optional metadata to store with the revocation
+</ParamField>
+
+### Example Request
+
+<CodeGroup>
+```bash cURL
+curl -X POST http://localhost:4000/api/json/tokens/revoke_token \
+  -H "Authorization: Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9..." \
+  -H "Content-Type: application/json" \
+  -d '{
+    "token": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...",
+    "extra_data": {
+      "reason": "user_initiated_logout"
+    }
+  }'
+```
+
+```javascript JavaScript
+const response = await fetch('http://localhost:4000/api/json/tokens/revoke_token', {
+  method: 'POST',
+  headers: {
+    'Authorization': 'Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...',
+    'Content-Type': 'application/json'
+  },
+  body: JSON.stringify({
+    token: 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...',
+    extra_data: {
+      reason: 'user_initiated_logout'
+    }
+  })
+});
+```
+
+```python Python
+import requests
+
+response = requests.post(
+    'http://localhost:4000/api/json/tokens/revoke_token',
+    headers={
+        'Authorization': 'Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...'
+    },
+    json={
+        'token': 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...',
+        'extra_data': {
+            'reason': 'user_initiated_logout'
+        }
+    }
+)
+```
+</CodeGroup>
+
+### Response
+
+Returns the created revocation token.
+
+```json
+{
+  "data": {
+    "type": "token",
+    "id": "revocation-jti",
+    "attributes": {
+      "subject": "123e4567-e89b-12d3-a456-426614174000",
+      "purpose": "revocation",
+      "expires_at": "2026-04-03T10:30:00Z",
+      "extra_data": {
+        "reason": "user_initiated_logout"
+      },
+      "created_at": "2026-03-03T10:30:00Z",
+      "updated_at": "2026-03-03T10:30:00Z"
+    }
+  }
+}
+```
+
+<Note>
+  Once revoked, a token cannot be used for authentication. This operation is irreversible.
+</Note>
+
+---
+
+## Revoke Token by JTI
+
+Revoke a token using its JTI (unique identifier).
+
+### Endpoint
+
+```
+POST /api/json/tokens/revoke_jti
+```
+
+### Authentication
+
+Bearer token required.
+
+### Request Body
+
+<ParamField body="subject" type="string" required>
+  User ID (subject) associated with the token
+</ParamField>
+
+<ParamField body="jti" type="string" required>
+  Token JTI to revoke
+</ParamField>
+
+<ParamField body="extra_data" type="object">
+  Optional metadata to store with the revocation
+</ParamField>
+
+### Example Request
+
+```bash
+curl -X POST http://localhost:4000/api/json/tokens/revoke_jti \
+  -H "Authorization: Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9..." \
+  -H "Content-Type: application/json" \
+  -d '{
+    "subject": "123e4567-e89b-12d3-a456-426614174000",
+    "jti": "abc123-jti-identifier",
+    "extra_data": {
+      "reason": "security_breach"
+    }
+  }'
+```
+
+---
+
+## Store Token
+
+Manually store a token in the database for tracking.
+
+### Endpoint
+
+```
+POST /api/json/tokens/store_token
+```
+
+### Authentication
+
+Bearer token required.
+
+### Request Body
+
+<ParamField body="token" type="string" required>
+  Token to store
+</ParamField>
+
+<ParamField body="purpose" type="string">
+  Token purpose (e.g., "user", "api_key")
+</ParamField>
+
+<ParamField body="extra_data" type="object">
+  Optional metadata to store with the token
+</ParamField>
+
+### Example Request
+
+```bash
+curl -X POST http://localhost:4000/api/json/tokens/store_token \
+  -H "Authorization: Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9..." \
+  -H "Content-Type: application/json" \
+  -d '{
+    "token": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...",
+    "purpose": "api_key",
+    "extra_data": {
+      "description": "Production API key"
+    }
+  }'
+```
+
+---
+
+## Revoke All Tokens for User
+
+Revoke all stored tokens for a specific user.
+
+### Endpoint
+
+```
+PATCH /api/json/tokens/revoke_all_for_subject
+```
+
+### Authentication
+
+Bearer token required.
+
+### Request Body
+
+<ParamField body="subject" type="string" required>
+  User ID whose tokens should be revoked
+</ParamField>
+
+<ParamField body="extra_data" type="object">
+  Optional metadata to store with the revocations
+</ParamField>
+
+### Example Request
+
+```bash
+curl -X PATCH http://localhost:4000/api/json/tokens/revoke_all_for_subject \
+  -H "Authorization: Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9..." \
+  -H "Content-Type: application/json" \
+  -d '{
+    "subject": "123e4567-e89b-12d3-a456-426614174000",
+    "extra_data": {
+      "reason": "account_compromised"
+    }
+  }'
+```
+
+<Warning>
+  This will revoke ALL tokens for the specified user, logging them out from all devices and sessions.
+</Warning>
+
+---
+
+## Delete Expired Tokens
+
+Permanently delete all expired tokens from the database.
+
+### Endpoint
+
+```
+DELETE /api/json/tokens/expunge_expired
+```
+
+### Authentication
+
+Bearer token required (typically admin privileges).
+
+### Example Request
+
+```bash
+curl -X DELETE http://localhost:4000/api/json/tokens/expunge_expired \
+  -H "Authorization: Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9..."
+```
+
+<Note>
+  This is a cleanup operation typically run as a scheduled task to maintain database hygiene.
+</Note>
+
+---
+
+## Error Responses
+
+### 401 Unauthorized
+
+```json
+{
+  "errors": [
+    {
+      "title": "Unauthorized",
+      "detail": "Invalid or missing authentication token",
+      "status": "401"
+    }
+  ]
+}
+```
+
+### 404 Not Found
+
+```json
+{
+  "errors": [
+    {
+      "title": "Not Found",
+      "detail": "Token not found",
+      "status": "404"
+    }
+  ]
+}
+```
+
+### 422 Unprocessable Entity
+
+```json
+{
+  "errors": [
+    {
+      "title": "Invalid Input",
+      "detail": "Either token or jti must be provided",
+      "status": "422"
+    }
+  ]
+}
+```
+
+---
+
+## Related Resources
+
+<CardGroup cols={2}>
+  <Card title="Token Resource Schema" icon="database" href="/api/resources/token-resource">
+    View the complete Token resource schema
+  </Card>
+  <Card title="Authentication Guide" icon="lock" href="/api/authentication">
+    Learn about authentication and token usage
+  </Card>
+</CardGroup>

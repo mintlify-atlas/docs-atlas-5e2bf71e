@@ -1,0 +1,180 @@
+---
+title: Authentication Overview
+description: Learn how Ash Coffee implements secure authentication with multiple strategies using AshAuthentication
+---
+
+## Introduction
+
+Ash Coffee uses [AshAuthentication](https://hexdocs.pm/ash_authentication) to provide a secure, flexible authentication system. The authentication system is built directly into the User resource and supports multiple authentication strategies and security features.
+
+## Available Authentication Strategies
+
+Ash Coffee implements the following authentication strategies:
+
+<CardGroup cols={2}>
+  <Card title="Password Authentication" icon="key" href="/authentication/password-auth">
+    Traditional email and password authentication with registration, sign-in, and password reset flows
+  </Card>
+  
+  <Card title="Remember Me" icon="clock" href="/authentication/password-auth#remember-me">
+    Extended session tokens for persistent authentication across browser sessions
+  </Card>
+  
+  <Card title="JWT Tokens" icon="shield-check" href="/authentication/tokens">
+    Secure JSON Web Tokens for API authentication and session management
+  </Card>
+</CardGroup>
+
+## Authentication Configuration
+
+The User resource is configured with AshAuthentication extension in `lib/ash_coffee/accounts/user.ex`:
+
+```elixir lib/ash_coffee/accounts/user.ex
+defmodule AshCoffee.Accounts.User do
+  use Ash.Resource,
+    otp_app: :ash_coffee,
+    domain: AshCoffee.Accounts,
+    data_layer: AshPostgres.DataLayer,
+    authorizers: [Ash.Policy.Authorizer],
+    extensions: [AshAuthentication]
+
+  authentication do
+    add_ons do
+      log_out_everywhere do
+        apply_on_password_change? true
+      end
+
+      confirmation :confirm_new_user do
+        monitor_fields [:email]
+        confirm_on_create? true
+        require_interaction? true
+        confirmed_at_field :confirmed_at
+        auto_confirm_actions [:sign_in_with_magic_link, :reset_password_with_token]
+      end
+    end
+
+    tokens do
+      enabled? true
+      token_resource AshCoffee.Accounts.Token
+      signing_secret AshCoffee.Secrets
+      store_all_tokens? true
+      require_token_presence_for_authentication? true
+    end
+
+    strategies do
+      password :password do
+        identity_field :email
+        hash_provider AshAuthentication.BcryptProvider
+
+        resettable do
+          sender AshCoffee.Accounts.User.Senders.SendPasswordResetEmail
+          password_reset_action_name :reset_password_with_token
+          request_password_reset_action_name :request_password_reset_token
+        end
+      end
+
+      remember_me :remember_me
+    end
+  end
+end
+```
+
+## Security Features
+
+<AccordionGroup>
+  <Accordion title="Email Confirmation">
+    New users must confirm their email address before gaining full access. The confirmation system:
+    
+    - Monitors the `email` field for changes
+    - Requires confirmation on user creation
+    - Auto-confirms for magic link and password reset flows
+    - Stores confirmation timestamp in `confirmed_at` field
+  </Accordion>
+
+  <Accordion title="Password Hashing">
+    Passwords are securely hashed using bcrypt through `AshAuthentication.BcryptProvider`:
+    
+    - Minimum password length: 8 characters
+    - Passwords stored in `hashed_password` attribute (marked sensitive)
+    - Plaintext passwords never stored or logged
+  </Accordion>
+
+  <Accordion title="Token Storage">
+    All authentication tokens are stored in the database:
+    
+    - Token presence required for authentication
+    - Supports token revocation and expiration
+    - JTI (JWT ID) based token tracking
+    - Automatic cleanup of expired tokens
+  </Accordion>
+
+  <Accordion title="Log Out Everywhere">
+    Users can invalidate all active sessions:
+    
+    - Automatically triggered on password change
+    - Revokes all stored tokens for the user
+    - Forces re-authentication on all devices
+  </Accordion>
+</AccordionGroup>
+
+## Authentication Flow
+
+Here's how the typical authentication flow works in Ash Coffee:
+
+<Steps>
+  <Step title="User Registration">
+    User creates an account with email and password using the `register_with_password` action.
+    
+    A confirmation email is sent, and a JWT token is generated for immediate sign-in.
+  </Step>
+  
+  <Step title="Email Confirmation">
+    User clicks the confirmation link in their email to verify their account.
+    
+    The `confirmed_at` timestamp is set on the User resource.
+  </Step>
+  
+  <Step title="Sign In">
+    User signs in with email and password using the `sign_in_with_password` action.
+    
+    A new JWT token is generated and returned in the response metadata.
+  </Step>
+  
+  <Step title="Authenticated Requests">
+    Client includes the JWT token in subsequent requests.
+    
+    AshAuthentication validates the token and loads the user context.
+  </Step>
+</Steps>
+
+## User Resource Structure
+
+The User resource has the following authentication-related attributes:
+
+<ParamField path="id" type="uuid" required>
+  Primary key for the user
+</ParamField>
+
+<ParamField path="email" type="ci_string" required>
+  Case-insensitive email address (unique identity)
+</ParamField>
+
+<ParamField path="hashed_password" type="string" required>
+  Bcrypt-hashed password (sensitive, never exposed)
+</ParamField>
+
+<ParamField path="confirmed_at" type="utc_datetime_usec">
+  Timestamp when the user confirmed their email address
+</ParamField>
+
+## Next Steps
+
+<CardGroup cols={2}>
+  <Card title="Password Authentication" icon="key" href="/authentication/password-auth">
+    Learn about registration, sign-in, and password reset flows
+  </Card>
+  
+  <Card title="Token Management" icon="shield-check" href="/authentication/tokens">
+    Understand JWT tokens, storage, and security
+  </Card>
+</CardGroup>

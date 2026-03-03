@@ -1,0 +1,223 @@
+---
+title: 'Domains'
+description: 'Understand how Ash Domains organize resources in AshCoffee'
+---
+
+## What are Domains?
+
+Domains in Ash Framework are containers that group related resources together. They define the boundaries of your application's business logic and provide a clean API for interacting with resources.
+
+Think of domains as modules that represent distinct areas of your application - like `Accounts`, `Products`, `Orders`, etc. Each domain contains resources that belong together conceptually.
+
+## The Accounts Domain
+
+AshCoffee has an `Accounts` domain that handles all user authentication and identity management:
+
+```elixir lib/ash_coffee/accounts.ex
+defmodule AshCoffee.Accounts do
+  use Ash.Domain,
+    otp_app: :ash_coffee
+
+  resources do
+    resource AshCoffee.Accounts.Token
+    resource AshCoffee.Accounts.User
+  end
+end
+```
+
+This simple definition creates a complete domain with:
+- A unified API for accessing User and Token resources
+- Consistent error handling across all resources
+- Transaction support for multi-resource operations
+- A clear namespace for authentication logic
+
+## Domain Structure
+
+<Steps>
+  <Step title="Domain Declaration">
+    Use `use Ash.Domain` to declare a new domain and specify the OTP app it belongs to.
+  </Step>
+  
+  <Step title="Resource Registration">
+    List all resources that belong to this domain in the `resources do` block.
+  </Step>
+  
+  <Step title="Access Resources">
+    Use the domain module to interact with resources: `AshCoffee.Accounts` becomes your API entry point.
+  </Step>
+</Steps>
+
+## Why Use Domains?
+
+<CardGroup cols={2}>
+  <Card title="Clear Boundaries" icon="border-all">
+    Domains establish clear boundaries between different parts of your application
+  </Card>
+  <Card title="Unified API" icon="code">
+    All resources in a domain share a consistent interface for queries and actions
+  </Card>
+  <Card title="Better Organization" icon="folder-tree">
+    Related resources are grouped together, making the codebase easier to navigate
+  </Card>
+  <Card title="Testing" icon="flask">
+    Test entire domains in isolation without dependencies on other parts of the app
+  </Card>
+</CardGroup>
+
+## Using the Accounts Domain
+
+Here's how you interact with resources through the domain:
+
+<Tabs>
+  <Tab title="Creating Users">
+    ```elixir
+    # Register a new user through the Accounts domain
+    AshCoffee.Accounts.User
+    |> Ash.Changeset.for_create(
+      :register_with_password,
+      %{
+        email: "user@example.com",
+        password: "secure_password",
+        password_confirmation: "secure_password"
+      }
+    )
+    |> Ash.create()
+    ```
+  </Tab>
+  
+  <Tab title="Reading Users">
+    ```elixir
+    # Query users through the domain
+    AshCoffee.Accounts.User
+    |> Ash.Query.filter(confirmed_at != nil)
+    |> Ash.read()
+    
+    # Get a specific user by email
+    AshCoffee.Accounts.User
+    |> Ash.get_by(:email, "user@example.com")
+    ```
+  </Tab>
+  
+  <Tab title="Managing Tokens">
+    ```elixir
+    # Store an authentication token
+    AshCoffee.Accounts.Token
+    |> Ash.Changeset.for_create(
+      :store_token,
+      %{token: jwt_token, purpose: "access"}
+    )
+    |> Ash.create()
+    
+    # Check if a token is revoked
+    AshCoffee.Accounts.Token
+    |> Ash.ActionInput.for_action(
+      :revoked?,
+      %{jti: token_jti}
+    )
+    |> Ash.run_action()
+    ```
+  </Tab>
+</Tabs>
+
+## Domain Benefits in AshCoffee
+
+<Info>
+  The `Accounts` domain provides a single entry point for all authentication operations. Instead of calling functions scattered across different modules, everything goes through the domain.
+</Info>
+
+### Consistent Error Handling
+
+All resources in the domain return the same error structures:
+
+```elixir
+case Ash.create(changeset) do
+  {:ok, user} -> 
+    # Success - user created
+    {:ok, user}
+    
+  {:error, %Ash.Error.Invalid{} = error} ->
+    # Validation error - consistent structure across all resources
+    {:error, error}
+end
+```
+
+### Transaction Support
+
+Domains can coordinate multi-resource operations:
+
+```elixir
+# Create user and store initial token in a single transaction
+Ash.bulk_create(
+  [user_changeset, token_changeset],
+  return_records?: true,
+  transaction?: true
+)
+```
+
+## File Organization
+
+The Accounts domain follows this structure:
+
+```
+lib/ash_coffee/
+├── accounts.ex                 # Domain definition
+└── accounts/
+    ├── user.ex                 # User resource
+    ├── token.ex                # Token resource
+    └── user/
+        └── senders/            # Email senders for auth flows
+            ├── send_new_user_confirmation_email.ex
+            └── send_password_reset_email.ex
+```
+
+<Note>
+  Resources are defined in files under the `accounts/` directory, keeping the domain organized and maintainable.
+</Note>
+
+## Extending Domains
+
+As AshCoffee grows, you can add more domains:
+
+```elixir
+# Future domain example
+defmodule AshCoffee.Shop do
+  use Ash.Domain,
+    otp_app: :ash_coffee
+
+  resources do
+    resource AshCoffee.Shop.Product
+    resource AshCoffee.Shop.Order
+    resource AshCoffee.Shop.OrderItem
+  end
+end
+```
+
+Each domain remains independent with its own resources and business logic.
+
+## Domain vs Context
+
+If you're familiar with Phoenix Contexts, domains are similar but more powerful:
+
+| Feature | Phoenix Context | Ash Domain |
+|---------|----------------|------------|
+| Groups related functionality | ✅ | ✅ |
+| Provides public API | ✅ | ✅ |
+| Automatic query building | ❌ | ✅ |
+| Transaction coordination | Manual | Built-in |
+| Validation framework | Manual changesets | Declarative |
+| Authorization | Manual | Policy-based |
+
+<Warning>
+  Don't create both Phoenix Contexts and Ash Domains for the same functionality. Choose Ash Domains for new features to leverage the framework's full power.
+</Warning>
+
+## Next Steps
+
+<CardGroup cols={2}>
+  <Card title="Resources" icon="cube" href="/concepts/resources">
+    Dive into User and Token resources
+  </Card>
+  <Card title="Actions" icon="bolt" href="/concepts/actions">
+    Learn how actions define what resources can do
+  </Card>
+</CardGroup>

@@ -1,0 +1,431 @@
+---
+title: 'Token Resource'
+description: 'Complete schema for the Token resource'
+icon: 'key'
+---
+
+The Token resource manages authentication tokens, including creation, storage, revocation, and expiration tracking. All JWT tokens used in the Ash Coffee application are stored and tracked using this resource.
+
+## Resource Overview
+
+<ParamField path="type" type="string">
+  Resource type: `"token"`
+</ParamField>
+
+<ParamField path="id" type="string">
+  Token JTI (JWT ID) - serves as the primary key
+</ParamField>
+
+## Attributes
+
+### jti
+
+<ResponseField name="jti" type="string" required sensitive>
+  JWT Token Identifier (JTI). A unique identifier for the token, serving as the primary key.
+</ResponseField>
+
+**Properties:**
+- Primary key
+- Cannot be null
+- Sensitive field
+- Unique across all tokens
+
+```json
+"jti": "abc123-unique-jti-identifier"
+```
+
+### subject
+
+<ResponseField name="subject" type="string" required>
+  The subject of the token, typically the user ID (UUID) that the token belongs to.
+</ResponseField>
+
+**Properties:**
+- Cannot be null
+- References the user who owns the token
+- Used for token filtering and revocation
+
+```json
+"subject": "123e4567-e89b-12d3-a456-426614174000"
+```
+
+### expires_at
+
+<ResponseField name="expires_at" type="utc_datetime" required>
+  The timestamp when the token expires. After this time, the token is considered invalid.
+</ResponseField>
+
+**Properties:**
+- Cannot be null
+- UTC datetime
+- Checked during token validation
+
+```json
+"expires_at": "2026-04-03T10:30:00Z"
+```
+
+### purpose
+
+<ResponseField name="purpose" type="string" required>
+  The intended purpose of the token (e.g., "user", "password_reset", "magic_link", "revocation").
+</ResponseField>
+
+**Common Values:**
+- `"user"` - Standard authentication token
+- `"password_reset"` - Password reset token
+- `"magic_link"` - Magic link authentication
+- `"revocation"` - Token revocation record
+- `"sign_in"` - Short-lived sign-in token
+
+```json
+"purpose": "user"
+```
+
+### extra_data
+
+<ResponseField name="extra_data" type="map">
+  Optional metadata stored with the token. Can contain any JSON-serializable data.
+</ResponseField>
+
+**Use Cases:**
+- Storing revocation reasons
+- Tracking token creation context
+- Custom application-specific metadata
+
+```json
+"extra_data": {
+  "reason": "user_initiated_logout",
+  "ip_address": "192.168.1.1",
+  "user_agent": "Mozilla/5.0..."
+}
+```
+
+or
+
+```json
+"extra_data": null
+```
+
+### created_at
+
+<ResponseField name="created_at" type="utc_datetime" required>
+  Timestamp when the token was created (automatically set).
+</ResponseField>
+
+```json
+"created_at": "2026-03-03T10:30:00Z"
+```
+
+### updated_at
+
+<ResponseField name="updated_at" type="utc_datetime" required>
+  Timestamp when the token was last updated (automatically maintained).
+</ResponseField>
+
+```json
+"updated_at": "2026-03-03T10:30:00Z"
+```
+
+## Actions
+
+The Token resource supports the following actions:
+
+### read (Default)
+
+<ParamField path="action" type="string" default="read">
+  Standard read action for retrieving token records
+</ParamField>
+
+**Usage:**
+```bash
+GET /api/json/tokens
+```
+
+### expired (Read)
+
+<ParamField path="action" type="string">
+  `expired` - Retrieve all expired tokens
+</ParamField>
+
+**Filter:** `expires_at < now()`
+
+**Usage:**
+```bash
+GET /api/json/tokens?action=expired
+```
+
+**Returns:** Array of expired token resources
+
+### get_token (Read)
+
+<ParamField path="action" type="string">
+  `get_token` - Look up a token by JTI, token string, and optional purpose
+</ParamField>
+
+**Arguments:**
+- `token` (string, optional, sensitive) - Full token string
+- `jti` (string, optional, sensitive) - Token JTI
+- `purpose` (string, optional) - Token purpose filter
+
+**Note:** Either `token` or `jti` must be provided
+
+**Usage:**
+```bash
+GET /api/json/tokens?action=get_token&jti=abc123
+```
+
+### revoked? (Action)
+
+<ParamField path="action" type="string">
+  `revoked?` - Check if a token has been revoked
+</ParamField>
+
+**Arguments:**
+- `token` (string, optional, sensitive) - Full token string
+- `jti` (string, optional, sensitive) - Token JTI
+
+**Returns:** Boolean indicating revocation status
+
+**Usage:**
+```bash
+POST /api/json/tokens/revoked
+```
+
+### revoke_token (Create)
+
+<ParamField path="action" type="string">
+  `revoke_token` - Revoke a specific token
+</ParamField>
+
+**Arguments:**
+- `token` (string, required, sensitive) - Token to revoke
+
+**Accepts:**
+- `extra_data` (map) - Optional metadata about the revocation
+
+**Side Effects:**
+- Creates a revocation token record
+- Invalidates the specified token
+
+**Usage:**
+```bash
+POST /api/json/tokens/revoke_token
+```
+
+### revoke_jti (Create)
+
+<ParamField path="action" type="string">
+  `revoke_jti` - Revoke a token by its JTI
+</ParamField>
+
+**Arguments:**
+- `subject` (string, required, sensitive) - User ID
+- `jti` (string, required, sensitive) - Token JTI to revoke
+
+**Accepts:**
+- `extra_data` (map) - Optional metadata about the revocation
+
+**Side Effects:**
+- Creates a revocation token record
+
+**Usage:**
+```bash
+POST /api/json/tokens/revoke_jti
+```
+
+### store_token (Create)
+
+<ParamField path="action" type="string">
+  `store_token` - Store a new token in the database
+</ParamField>
+
+**Arguments:**
+- `token` (string, required, sensitive) - Token to store
+
+**Accepts:**
+- `extra_data` (map) - Optional metadata
+- `purpose` (string) - Token purpose
+
+**Side Effects:**
+- Parses and validates the JWT
+- Stores token details in database
+
+**Usage:**
+```bash
+POST /api/json/tokens/store_token
+```
+
+### expunge_expired (Destroy)
+
+<ParamField path="action" type="string">
+  `expunge_expired` - Permanently delete expired tokens
+</ParamField>
+
+**Filter:** `expires_at < now()`
+
+**Side Effects:**
+- Deletes all expired tokens from database
+- Cannot be undone
+
+**Usage:**
+```bash
+DELETE /api/json/tokens/expunge_expired
+```
+
+<Warning>
+  This permanently deletes expired tokens. Typically run as a scheduled cleanup task.
+</Warning>
+
+### revoke_all_stored_for_subject (Update)
+
+<ParamField path="action" type="string">
+  `revoke_all_stored_for_subject` - Revoke all tokens for a specific user
+</ParamField>
+
+**Arguments:**
+- `subject` (string, required, sensitive) - User ID
+
+**Accepts:**
+- `extra_data` (map) - Optional metadata about the revocation
+
+**Side Effects:**
+- Creates revocation records for all user's tokens
+- Effectively logs out the user from all devices
+
+**Usage:**
+```bash
+PATCH /api/json/tokens/revoke_all_for_subject
+```
+
+<Warning>
+  This revokes ALL tokens for a user, logging them out everywhere.
+</Warning>
+
+## Policies
+
+The Token resource has the following authorization policies:
+
+### AshAuthentication Bypass
+
+<Note>
+  AshAuthentication interactions bypass standard policies to enable token management flows.
+</Note>
+
+This allows the authentication system to create, read, and revoke tokens without additional authorization checks.
+
+## Data Layer
+
+**Database:** PostgreSQL  
+**Table:** `tokens`  
+**Repo:** `AshCoffee.Repo`
+
+## Token Lifecycle
+
+### Creation
+
+1. Token is generated by authentication system
+2. Token is stored using `store_token` action
+3. JTI, subject, expiry, and purpose are extracted and stored
+
+### Validation
+
+1. JWT signature is verified
+2. Token is looked up in database by JTI
+3. Expiration is checked
+4. Revocation status is checked
+
+### Revocation
+
+1. Revocation record is created with matching JTI
+2. Original token becomes invalid
+3. Optional metadata tracks revocation reason
+
+### Cleanup
+
+1. Expired tokens accumulate in database
+2. `expunge_expired` action removes old tokens
+3. Typically run as scheduled background job
+
+## Example Response
+
+Here's a complete example of a Token resource as returned by the API:
+
+```json
+{
+  "data": {
+    "type": "token",
+    "id": "abc123-unique-jti-identifier",
+    "attributes": {
+      "jti": "abc123-unique-jti-identifier",
+      "subject": "123e4567-e89b-12d3-a456-426614174000",
+      "purpose": "user",
+      "expires_at": "2026-04-03T10:30:00Z",
+      "extra_data": {
+        "device": "mobile",
+        "ip_address": "192.168.1.1"
+      },
+      "created_at": "2026-03-03T10:30:00Z",
+      "updated_at": "2026-03-03T10:30:00Z"
+    }
+  }
+}
+```
+
+## Revocation Example
+
+Example of a revocation token:
+
+```json
+{
+  "data": {
+    "type": "token",
+    "id": "revocation-jti-identifier",
+    "attributes": {
+      "jti": "revocation-jti-identifier",
+      "subject": "123e4567-e89b-12d3-a456-426614174000",
+      "purpose": "revocation",
+      "expires_at": "2026-04-03T10:30:00Z",
+      "extra_data": {
+        "reason": "user_initiated_logout",
+        "revoked_token_jti": "abc123-unique-jti-identifier"
+      },
+      "created_at": "2026-03-03T10:30:00Z",
+      "updated_at": "2026-03-03T10:30:00Z"
+    }
+  }
+}
+```
+
+## Security Considerations
+
+<Warning>
+  Token JTIs and full token strings are sensitive. Handle them with care and never expose them in logs or client-side code unnecessarily.
+</Warning>
+
+- All tokens are stored in database for tracking
+- Revoked tokens cannot be un-revoked
+- Token expiration is enforced at validation time
+- Purpose field allows different token types to coexist
+- Extra data can track security-relevant context
+
+## Best Practices
+
+1. **Regular Cleanup**: Run `expunge_expired` regularly to clean up old tokens
+2. **Revocation Metadata**: Use `extra_data` to track why tokens were revoked
+3. **Purpose Segregation**: Use different purposes for different token types
+4. **Monitoring**: Monitor token creation and revocation patterns for anomalies
+5. **Expiration**: Set appropriate expiration times based on token purpose
+
+## Related Resources
+
+<CardGroup cols={2}>
+  <Card title="Token Endpoints" icon="code" href="/api/endpoints/tokens">
+    View all token-related API endpoints
+  </Card>
+  <Card title="User Resource" icon="database" href="/api/resources/user-resource">
+    Learn about the User resource schema
+  </Card>
+  <Card title="Authentication" icon="lock" href="/api/authentication">
+    Understand authentication flows
+  </Card>
+</CardGroup>
